@@ -48,8 +48,11 @@ class SweeperView(QVBoxLayout):
 
     def setImage(self, img):
         pixmap = image2pixmap(img)
-        self.imageView.setPixmap( pixmap.scaledToWidth( int(self.width * 0.95) ) )
-    
+        if pixmap.width() > pixmap.height():
+            self.imageView.setPixmap( pixmap.scaledToWidth( int(self.width * 0.95) ) )
+        else:
+            self.imageView.setPixmap( pixmap.scaledToHeight( int(self.height * 0.95) ) )
+
     def setText(self, text):
         self.conditionLabel.setText(text)
 
@@ -116,8 +119,13 @@ class RokAU(QWidget):
         find_btn.setFixedHeight(30)
         find_btn.clicked.connect(self.onFindButtonClicked)
 
+        crack_btn = QPushButton('인증 풀기 테스트',self)
+        crack_btn.setFixedHeight(30)
+        crack_btn.clicked.connect(self.onCrackButtonClicked)
+
         vbox.addWidget(find_btn)
         vbox.addWidget(screen_btn)
+        vbox.addWidget(crack_btn)
 
         hbox_foot = QHBoxLayout()
         stop_btn = QPushButton('정지',self)
@@ -158,7 +166,11 @@ class RokAU(QWidget):
 
     def onFindButtonClicked(self):
         #print('find button clicked')
-        self.sweeper.find(self.bbox)
+        self.sweeper.findRuby(self.bbox)
+
+    def onCrackButtonClicked(self):
+        #print('find button clicked')
+        self.sweeper.crackRobotCheck(self.bbox)
     
     def onScreenButtonClicked(self):
         self.sweeper.detectScreen( self.pw, self.ph, self.bbox)

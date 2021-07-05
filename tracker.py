@@ -51,7 +51,7 @@ class Tracker(Thread):
         pyautogui.moveTo(self.calcRandomX(), self.calcRandomY(), self.generateRandomNumber(1.5), self.randomMovingOption())
         pyautogui.dragTo(self.calcRandomX(), self.calcRandomY(), self.generateRandomNumber(2), self.randomMovingOption())
         time.sleep(0.5)
-        r = self.sweeper.find(self.bbox)
+        r = self.sweeper.findRuby(self.bbox)
         if r is not None:
             print(r)
             pyautogui.moveTo( r[0], r[1], self.generateRandomNumber(1.5))

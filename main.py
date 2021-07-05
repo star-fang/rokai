@@ -15,8 +15,8 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
 
-    sweeper = Sweeper('cv2.TM_CCOEFF_NORMED')
-    ocr = OcrEngine()
+    ocr = OcrEngine('-l eng+kor --oem 1 --psm3') #default config
+    sweeper = Sweeper('cv2.TM_CCOEFF_NORMED', ocr) # default TM_option
     rokAiUi = RokAU(screenSize, ocr, sweeper)
 
     exit(app.exec_())
