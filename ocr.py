@@ -25,5 +25,4 @@ class OcrEngine:
             
         #config lang oem psm
         ocr = pytesseract.image_to_string(im, config=config)
-        print(ocr)
         return ocr

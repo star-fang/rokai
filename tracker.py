@@ -48,7 +48,7 @@ class Tracker(Thread):
         return None
 
     def move( self ):
-        pyautogui.moveTo(self.calcRandomX(), self.calcRandomY(), self.generateRandomNumber(1.5), self.randomMovingOption())
+        pyautogui.moveTo(self.calcRandomX(), self.calcRandomY(), self.generateRandomNumber(1.5))
         pyautogui.dragTo(self.calcRandomX(), self.calcRandomY(), self.generateRandomNumber(2), self.randomMovingOption())
         time.sleep(0.5)
         r = self.sweeper.findRuby(self.bbox)
