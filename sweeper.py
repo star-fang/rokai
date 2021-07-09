@@ -2,17 +2,24 @@ import cv2
 from PIL import ImageGrab
 import numpy as np
 import imutils
+import os
+import re
 
-def captureAndTresholding(bbox, threshold_value):
-    
-    img_pil = ImageGrab.grab(bbox=bbox)
-    img_src = np.array(img_pil)
-    img_tresholding = thresholding(img_src, threshold_value)
-    return (img_src,img_tresholding)
+TH_FIND_APP = 60
+TH_TIME = 127
+TH_DIALOG = 127
+TH_CRACK = 127
+TH_RUBY = 90
 
 #edge detection(Canny) vs thresholdng
-def thresholding(image, tVal):
-    img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+def thresholding(image, tVal=127, option=None, isGray=False):
+    if isGray:
+        img_gray = image
+    else:
+        img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    if option is not None:
+        return cv2.adaptiveThreshold(img_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)
+
     return cv2.threshold(img_gray, tVal, 255, cv2.THRESH_BINARY)[1]
 
 
@@ -67,17 +74,21 @@ def rotateImage( image, angle ):
 #A ruby finder in rok
 class Sweeper:
 
+    TIME_NIGHT = 0
+    TIME_DAY = 1
+    STATE_UNKNOWN = -1
     STATE_NORMAL = 0
     STATE_CHECK_ROBOT1 = 1
     STATE_CHECK_ROBOT2 = 2
 
     def __init__(self, methodName, ocr):
         templatePath = 'C:/Users/clavi/Downloads/ruby/template.png'
-        self.template = thresholding(cv2.imread(templatePath), 90)
+        self.template = thresholding(cv2.imread(templatePath), tVal=TH_RUBY)
         if methodName is not None:
             self.setMethodName(methodName)
         self.view = None
         self.ocr = ocr
+        self.bbox = [0,0,0,0]
     
     def setMethodName(self, name):
         self.methodName = name
@@ -101,78 +112,123 @@ class Sweeper:
         if self.view is not None:
             self.view.setText(txt)
 
-    
-    def detectState(self, bbox):
-        screen_thresh = captureAndTresholding( bbox, 127 )[1]
-        self.setViewImage(screen_thresh)
-        contours = findContourList(screen_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        cMax = max( contours, key=cv2.contourArea)
-        x,y,w,h = cv2.boundingRect(cMax)
-        ocr_txt = self.ocr.read(screen_thresh[y:y+h,x:x+w],config='-l kor --oem 1 --psm 3')
-        ocr_txt_no_blank = str(ocr_txt).replace(' ','')
-        print(ocr_txt_no_blank)
-
-        if '사용' in ocr_txt_no_blank:
-            self.setViewText('state: check robot1')
-            return self.STATE_CHECK_ROBOT2
-        elif '보상' in ocr_txt_no_blank:
-            self.setViewText('state: check robot2')
-            return self.STATE_CHECK_ROBOT1
-        else:
-            self.setViewText('state: normal')
-            return self.STATE_NORMAL
-        #self.setViewImage(screen_thresh[y:y+h,x:x+w])
-
-    #detect rok screen and resize bbox
-    def detectScreen(self, pw, ph, bbox):
-        img_thresh = captureAndTresholding( (0,0,pw,ph), 60 )[1]
-        
-        contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    def detectCoordinates(self, img_src):
+        imgHeight, imgWidth = img_src.shape[:2]
+        topLeft = img_src[0:int(imgHeight*0.07),0:int(imgWidth*0.5)]
+        topLeft_extreme_th = thresholding(topLeft, 160, isGray=False)
+        contours = findContourList(topLeft_extreme_th, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+       
 
         if len(contours) > 0:
-            #detected = cv2.cvtColor(img_thresh, cv2.COLOR_GRAY2RGB)
-            # draw in blue the contours that were founded
-            #cv2.drawContours(detected, contours, -1, 255, 2)
+            cMax = max( contours, key=cv2.contourArea)
+            x,y,w,h = cv2.boundingRect(cMax)
+            coords_part = topLeft[y+int(0.1*h):y+int(0.8*h),x+w:x+int(2.1*w)]
 
-            # find the biggest countour (c) by the area
+            #coords_yuv = cv2.cvtColor(coords_part, cv2.COLOR_BGR2YUV)
+            #oords_yuv[:, :, 0] = cv2.equalizeHist(coords_yuv[:, :, 0])
+            #coords_rgb = cv2.cvtColor(coords_yuv, cv2.COLOR_YUV2RGB)
+            coords_txt = self.ocr.read(coords_part,config='-l eng --oem 1 --psm 7')
+            print(coords_txt)
+            txt = re.sub('\D',' ', coords_txt)
+            split = re.split('\s+', txt)
+            for s in split:
+                digits = re.sub('\D', '', s)
+                if (digits != ''):
+                    print(digits)
+
+
+    
+    def identifyState(self, img_src): #detect state using ocr
+        img_thresh = thresholding(img_src, TH_DIALOG)
+        contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        cMax = max( contours, key=cv2.contourArea)
+        x,y,w,h = cv2.boundingRect(cMax)
+
+        if w * 1.5 < self.bbox[2]:
+            part_to_ocr = img_src[y:y+int(h*0.2),x:x+w]
+            part_pre = self.ocr.preprocessing( part_to_ocr )[1]
+            ocr_txt = str(self.ocr.read(part_pre,config='-l kor --oem 1 --psm 3'))
+            orc_txt_no_lines = os.linesep.join([s for s in ocr_txt.splitlines() if s])
+            ocr_txt_no_blank = orc_txt_no_lines.replace(' ','')
+            print('ocr_in_block(thresh):' + ocr_txt_no_blank)
+
+            if( ocr_txt_no_blank == ''):
+                part_pre = self.ocr.preprocessing( part_to_ocr )[0]
+                ocr_txt = str(self.ocr.read(part_pre,config='-l kor --oem 1 --psm 3'))
+                orc_txt_no_lines = os.linesep.join([s for s in ocr_txt.splitlines() if s])
+                ocr_txt_no_blank = orc_txt_no_lines.replace(' ','')
+                print('ocr_in_block(gray):' + ocr_txt_no_blank)
+        else:
+            ocr_txt_no_blank = None
+
+        if ocr_txt_no_blank is None:
+            self.detectCoordinates(img_src)
+            self.setViewText('state: normal, time:' + str(self.time))
+            return self.STATE_NORMAL
+        elif '사용' in ocr_txt_no_blank:
+            self.setViewText('state: check robot1, time:' + str(self.time))
+            return self.STATE_CHECK_ROBOT2
+        elif '보상' in ocr_txt_no_blank:
+            self.setViewText('state: check robot2, time:' + str(self.time))
+            return self.STATE_CHECK_ROBOT1
+        else:
+            self.setViewText('state: unknown, time:' + str(self.time))
+            return self.STATE_UNKNOWN
+
+    def bigContourExist( self, img_src, tVal ):
+        img_thresh = thresholding(img_src, tVal)
+        contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contours) > 0:
             c = max(contours, key = cv2.contourArea)
-            x,y,w,h = cv2.boundingRect(c)
+            h,w = img_src.shape[:2]
+            x,y,cw,ch = cv2.boundingRect(c)
+            if bool( cw / w > 0.7 ) and bool( ch / h > 0.7):
+                bbox = [x,y,x+cw,y+ch]
+                return (True, bbox, img_thresh)
+        return (False,)
             
-            # draw the biggest contour (c) in green
-            
-            if bool( w / pw < 0.7 ) or bool( h / ph < 0.7):
-                bbox[0] = 0
-                bbox[1] = 0
-                bbox[2] = pw
-                bbox[3] = ph
-                self.setViewText('화면 감지 실패: 앱플레이어를 실행하고 화면 감지 버튼을 다시 눌러보세요')
-                print('---screen detection failure')
-            else:
-                #cv2.rectangle(detected,(x,y),(x+w,y+h),(0,255,0), 4)
-                bbox[0] = x
-                bbox[1] = y
-                bbox[2] = x + w
-                bbox[3] = y + h
-                self.setViewText('화면 감지 성공' )
-                print('---screen detected ' + str(bbox))
-                self.setViewImage( img_thresh[y:y+h,x:x+w])
-                return True
-        return False
+    def detectNightAndDay( self, img_src):
+        daytime = self.bigContourExist(img_src, TH_TIME)[0]
+        if daytime is True:
+            return self.TIME_DAY
+        else:
+            return self.TIME_NIGHT
 
-    def findRuby(self, bbox):
+    def detectState(self, pw, ph):
+        self.bbox = [2,2,pw,ph]
+        img_pil = ImageGrab.grab(bbox=self.bbox)
+        img_src = np.array(img_pil)
+
+        contourExist = self.bigContourExist(img_src, TH_FIND_APP)
+        if contourExist[0] is True:
+            self.bbox = contourExist[1]
+            print('---screen detected ' + str(self.bbox))
+            detected = img_src[self.bbox[1]:self.bbox[3],self.bbox[0]:self.bbox[2]]
+            img_rgb = cv2.cvtColor(detected,cv2.COLOR_BGR2RGB)
+            self.setViewImage(img_rgb)
+            self.time = self.detectNightAndDay( img_src )
+
+            state = self.identifyState(detected)
+            self.img_src = detected
+            return state
+
+        self.setViewText('화면 감지 실패: 앱플레이어를 실행하고 화면 감지 버튼을 다시 눌러보세요')
+        print('---screen detection failure')       
+        return None
+
+    def findRuby(self):
         if self.template is not None:
+            img_th = thresholding(self.img_src, 90)
+            self.setViewImage(img_th)
 
-            img = captureAndTresholding(bbox, 90)[1]
-            self.setViewImage(img)
-
-            match_result = self.multiScaleMatch( self.template, img )
+            match_result = self.multiScaleMatch( self.template, img_th )
 
             if match_result is not None:
                 matchVal,matched,top_left,bottom_right,r = match_result
                 cv2.rectangle(matched, top_left,bottom_right, (0,0,255),5)
                 self.setViewImage(matched)
                 self.setViewText('보석 발견 (매칭값: '+str(matchVal)+')')
-                return (int(r*(top_left[0]+bottom_right[0])//2+bbox[0]),int(r*(top_left[1]+bottom_right[1])//2+bbox[1]))
+                return (int(r*(top_left[0]+bottom_right[0])//2+self.bbox[0]),int(r*(top_left[1]+bottom_right[1])//2+self.bbox[1]))
             else:
                 self.setViewText('보석 없심더...')
 
@@ -195,10 +251,9 @@ class Sweeper:
         self.c_dst = cv2.Canny(cv2.GaussianBlur(self.c_src,(self.gb,self.gb),0) , self.th1, self.th2)
         cv2.imshow(self.windowName, self.c_dst) 
 
-    def crackRobotCheck( self, bbox ):
+    def crackRobotCheck( self, adjustMode=False ):
         #thresholding -> (multiscale <> ratate matching) -> click
-
-        img_src,img_thresh = captureAndTresholding( bbox, 127 )
+        img_thresh = thresholding(self.img_src, TH_CRACK)
 
         contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -220,8 +275,8 @@ class Sweeper:
             img_dialog_head_canny = cv2.Canny(img_dialog_head_blur, 50, 100)  #advanced config # canny value
 
             #img_dialog = img_src[y:y+h,x:x+w]
-            img_dialog_content= img_src[y+int(0.12*h):y+h,x:x+w]
-            img_dialog_head = img_src[y:y+int(0.12*h),x:x+w]
+            img_dialog_content= self.img_src[y+int(0.12*h):y+h,x:x+w]
+            img_dialog_head = self.img_src[y:y+int(0.12*h),x:x+w]
             
             self.setViewImage(img_dialog_head_thresh)
             ocr_txt = self.ocr.read(img_dialog_head_thresh,config='-l kor --oem 1 --psm 3')
@@ -264,19 +319,17 @@ class Sweeper:
 
                 cI = 0
                 self.c_src = img_dialog_content
-                self.c_dst = self.c_src.copy()
-                
-                cv2.imshow('Canny',self.c_dst)
-                
-                self.th1 = 0
-                self.th2 = 0
-                self.gb = 1
-                self.windowName = 'Canny'
-
-                cv2.createTrackbar('th1', 'Canny', 0, 300, self.onChange_th1)
-                cv2.createTrackbar('th2', 'Canny', 0, 300, self.onChange_th2)
-                cv2.createTrackbar('gb', 'Canny', 0, 10, self.onChange_gb)
-                cv2.waitKey()
+                self.th1 = 300
+                self.th2 = 300
+                self.gb = 7
+                self.c_dst = cv2.Canny(cv2.GaussianBlur(self.c_src,(self.gb,self.gb),0) , self.th1, self.th2)
+                if bool(adjustMode):
+                    cv2.imshow('Canny',self.c_dst)
+                    self.windowName = 'Canny'
+                    cv2.createTrackbar('th1', 'Canny', 0, 300, self.onChange_th1)
+                    cv2.createTrackbar('th2', 'Canny', 0, 300, self.onChange_th2)
+                    cv2.createTrackbar('gb', 'Canny', 0, 10, self.onChange_gb)
+                    cv2.waitKey()
 
                 content_canny = self.c_dst
                 self.setViewImage(content_canny)
@@ -291,23 +344,23 @@ class Sweeper:
 
                 self.c_src = img_dialog_head
                 self.c_dst = self.c_src.copy()
-                self.windowName = 'Template'
-                #cv2.namedWindow('Template',cv2.WINDOW_NORMAL)
-                #cv2.resizeWindow('Template', 300,300)
-                cv2.imshow('Template',self.c_dst)
-            
-                self.th1 = 0
+                
+                
+                self.th1 = 2
                 self.th2 = 0
                 self.gb = 1
-
-                cv2.createTrackbar('th1', 'Template', 0, 300, self.onChange_th1)
-                cv2.createTrackbar('th2', 'Template', 0, 300, self.onChange_th2)
-                cv2.createTrackbar('gb', 'Template', 0, 10, self.onChange_gb)
-                cv2.waitKey()
+                self.c_dst = cv2.Canny(cv2.GaussianBlur(self.c_src,(self.gb,self.gb),0) , self.th1, self.th2)
+                if bool(adjustMode):
+                    cv2.imshow('Template',self.c_dst)
+                    self.windowName = 'Template'
+                    cv2.namedWindow('Template',cv2.WINDOW_NORMAL)
+                    cv2.resizeWindow('Template', 300,300)
+                    cv2.createTrackbar('th1', 'Template', 0, 300, self.onChange_th1)
+                    cv2.createTrackbar('th2', 'Template', 0, 300, self.onChange_th2)
+                    cv2.createTrackbar('gb', 'Template', 0, 10, self.onChange_gb)
+                    cv2.waitKey()
 
                 templates_canny = self.c_dst
-                
-                
                 detected = cv2.cvtColor(content_canny, cv2.COLOR_GRAY2RGB)
 
                 for (rx,ry,rw,rh) in rects_no_duplicates:

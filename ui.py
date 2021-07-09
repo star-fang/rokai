@@ -1,8 +1,8 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PyQt5.QtWidgets import QListWidget
 from PyQt5.QtWidgets import QPushButton
-from PyQt5.QtWidgets import QLabel, QSlider
-from PyQt5.QtCore import QObject, pyqtSignal, QThread, Qt
+from PyQt5.QtWidgets import QLabel
+from PyQt5.QtCore import QObject, pyqtSignal, QThread
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
 from tracker import Tracker
@@ -31,18 +31,31 @@ def image2pixmap(im):
     return pixmap
 
 class Worker(QObject):
-    WORK_CRACK = 'crack'
-    finished = pyqtSignal()
-    progress = pyqtSignal(int)
+    WORK_DETECT_STATE = 1
+    WORK_CRACK = 2
+    WORK_RUBY = 3
 
-    def __init__(self, parent=None):
+    finished = pyqtSignal()
+    state = pyqtSignal(int)
+
+    def __init__(self, parent=None, work=0):
         super().__init__()
+        self.work = work
         self.sweeper = parent.getSweeper()
-        self.bbox = parent.getBbox()
+        self.appSize = parent.getAppSize()
+        print( 'a worker constructed')
 
     def run(self):
-        self.sweeper.crackRobotCheck(self.bbox)
+        print( 'worker started')
+        if( self.work == self.WORK_CRACK):
+            self.sweeper.crackRobotCheck()
+        elif( self.work == self.WORK_DETECT_STATE):
+            state = self.sweeper.detectState(self.appSize[0], self.appSize[1])
+            self.state.emit(state)
+        elif( self.work == self.WORK_RUBY):
+            self.sweeper.findRuby()
         self.finished.emit()
+        
 
 class SweeperView(QVBoxLayout):
     def __init__(self, width, height):
@@ -86,13 +99,12 @@ class RokAU(QWidget):
         self.screenSize = screenSize
         self.pw = 2*self.screenSize[0]//3
         self.ph = 2*self.screenSize[1]//3
-        self.bbox = [0, 0, self.pw,self.ph] 
         #x1, y1, x2, y2
         #() tuple : immutable , [] list : mutable
         self.initUI()
 
-    def getBbox(self):
-        return self.bbox
+    def getAppSize(self):
+        return (self.pw, self.ph)
 
     def getSweeper(self):
         return self.sweeper
@@ -138,14 +150,9 @@ class RokAU(QWidget):
         vbox.addLayout(sweeperView)
         self.sweeper.setView(sweeperView)
 
-        screen_btn = QPushButton('화면 감지',self)
-        screen_btn.setFixedHeight(30)
-        screen_btn.clicked.connect(self.onScreenButtonClicked)
-
         self.state_btn = QPushButton('상태 감지',self)
         self.state_btn.setFixedHeight(30)
         self.state_btn.clicked.connect(self.onStateButtonClicked)
-        self.state_btn.setEnabled(False)
 
         self.find_btn = QPushButton('루비 찾기 테스트',self)
         self.find_btn.setFixedHeight(30)
@@ -157,7 +164,6 @@ class RokAU(QWidget):
         self.crack_btn.clicked.connect(self.onCrackButtonClicked)
         self.crack_btn.setEnabled(False)
 
-        vbox.addWidget(screen_btn)
         vbox.addWidget(self.state_btn)
         vbox.addWidget(self.find_btn)
         vbox.addWidget(self.crack_btn)
@@ -186,63 +192,61 @@ class RokAU(QWidget):
         title = item.text()
         players = pygetwindow.getWindowsWithTitle(title)
         if( len(players) > 0 ):
-            #self.listWidget.hide()
             player = players[0]
             player.resizeTo(self.pw,self.ph)
             player.moveTo(0,0)
             time.sleep(0.2)
             player.activate()
-            #if playerActive == False:
-            #pywinauto.application.Application().connect(handle=player._hWnd).top_window().set_focus()
             self.label.setText('선택된 프로그램:' + title)
-            #self.sweeper.detectScreen( self.pw, self.ph, self.bbox)
         else:
             self.refresh()
 
     def onFindButtonClicked(self):
-        #print('find button clicked')
         self.find_btn.setEnabled(False)
-        self.sweeper.findRuby(self.bbox)
+        self.sweeper.findRuby()
+
+    def makeWorkerThread( self, work ):
+        thread = QThread(self)
+        self.worker = Worker(self, work)
+
+        self.worker.moveToThread(thread)
+        thread.started.connect(self.worker.run)
+        self.worker.finished.connect(thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+
+        return thread
+
+
+    def onCrackFinished(self):
+        print('crack work finished')
 
     def onCrackButtonClicked(self):
-        #print('find button clicked')
-        self.thread = QThread(self)
-        self.worker = Worker(self)
-
-        self.worker.moveToThread(self.thread)
-        self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
-        #self.worker.progress.connect(self.ddd)
-        self.thread.start()
-
+        thread = self.makeWorkerThread( Worker.WORK_CRACK )
         self.crack_btn.setEnabled(False)
-        self.thread.finished.connect(self.onWorkFinished)
+        thread.finished.connect(self.onCrackFinished)
+        thread.start()
 
-    def onWorkFinished(self):
-        #self.crack_btn.setEnabled(True)
-        print('work finished')
-        
-    
-    def onScreenButtonClicked(self):
-        screenDetected = self.sweeper.detectScreen( self.pw, self.ph, self.bbox)
-        if bool(screenDetected) is True:
-            self.state_btn.setEnabled(True)
-        else:
-            self.state_btn.setEnabled(False)
+    def onDetectFinished(self):
+        self.state_btn.setEnabled(True)
+
+    def onStateChanged(self, state):
+        if( state == self.sweeper.STATE_NORMAL ):
             self.crack_btn.setEnabled(False)
-            self.find_btn.setEnabled(False)
-        #print('check bbox:' + str(self.bbox))
-    
-    def onStateButtonClicked(self):
-        state = self.sweeper.detectState( self.bbox)
-
-        if state == self.sweeper.STATE_CHECK_ROBOT2:
-            self.crack_btn.setEnabled(True)
-        elif state == self.sweeper.STATE_NORMAL:
             self.find_btn.setEnabled(True)
-        #print('check bbox:' + str(self.bbox))
+        elif( state == self.sweeper.STATE_CHECK_ROBOT2 ):
+            self.find_btn.setEnabled(False)
+            self.crack_btn.setEnabled(True)
+        else:
+            self.find_btn.setEnabled(False)
+            self.crack_btn.setEnabled(False)
+
+    def onStateButtonClicked(self):
+        thread = self.makeWorkerThread(Worker.WORK_DETECT_STATE)
+        self.state_btn.setEnabled(False)
+        self.worker.state.connect(self.onStateChanged)
+        thread.finished.connect(self.onDetectFinished)
+        thread.start()
 
     def onStartButtonClicked( self ):
         if self.tracker is None:

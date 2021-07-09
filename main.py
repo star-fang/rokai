@@ -20,4 +20,3 @@ if __name__ == '__main__':
     rokAiUi = RokAU(screenSize, ocr, sweeper)
 
     exit(app.exec_())
-

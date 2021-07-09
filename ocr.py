@@ -1,10 +1,47 @@
 import pytesseract
 import html5lib
+import numpy as np
+import cv2
 from bs4 import BeautifulSoup
+
+'''
+page segment mode (--psm) options
+0    Orientation and script detection (OSD) only.
+1    Automatic page segmentation with OSD.
+2    Automatic page segmentation, but no OSD, or OCR.
+3    Fully automatic page segmentation, but no OSD. (Default)
+4    Assume a single column of text of variable sizes.
+5    Assume a single uniform block of vertically aligned text.
+6    Assume a single uniform block of text.
+7    Treat the image as a single text line.
+8    Treat the image as a single word.
+9    Treat the image as a single word in a circle.
+10    Treat the image as a single character.
+11    Sparse text. Find as much text as possible in no particular order.
+12    Sparse text with OSD.
+13    Raw line. Treat the image as a single text line, bypassing hacks that
+
+engine mode (--oem) options
+0	Legacy engine only
+1	Neural net LSTM only
+2	Legacy + LSTM mode only
+3	By Default, based on what is currently available
+'''
 
 class OcrEngine:
     def __init__(self, config):
         self.config = config
+
+    def preprocessing(self, img_src, showProcess=False, blockSize=11, C=2):
+        img_gray = cv2.cvtColor(img_src,cv2.COLOR_BGR2GRAY)
+        noiseRemoved = cv2.fastNlMeansDenoising(img_gray,None,10,7,15)
+        img_th = cv2.adaptiveThreshold(noiseRemoved, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,blockSize=blockSize,C=C)
+        if showProcess:
+            cv2.imshow('pre-gray', img_gray)
+            cv2.imshow('pre-nr', noiseRemoved)
+            cv2.imshow('pre-th', img_th)
+            cv2.waitKey()
+        return noiseRemoved, img_th
 
     def readHtml(self,im):
         config = '--oem 1 --psm 3'
