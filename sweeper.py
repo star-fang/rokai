@@ -6,10 +6,11 @@ import os
 import re
 
 TH_FIND_APP = 60
+TH_RUBY_DAY = 90
+TH_RUBY_NIGHT = 60
 TH_TIME = 127
 TH_DIALOG = 127
 TH_CRACK = 127
-TH_RUBY = 90
 
 #edge detection(Canny) vs thresholdng
 def thresholding(image, tVal=127, option=None, isGray=False):
@@ -58,10 +59,7 @@ def match(template, resized, method, mThreshold):
             
         if( targetExist ):
                 bottom_right = (top_left[0] + tw, top_left[1] + th)
-                matched = cv2.cvtColor(resized, cv2.COLOR_GRAY2RGB)
-                #cv2.putText(matched, str(match_val), top_left, cv2.FONT_HERSHEY_PLAIN, 
-                #5, (0,255,0), 2, cv2.LINE_4)
-                return (match_val, matched, top_left, bottom_right)
+                return (match_val, top_left, bottom_right)
         else:
             return None
 
@@ -82,8 +80,10 @@ class Sweeper:
     STATE_CHECK_ROBOT2 = 2
 
     def __init__(self, methodName, ocr):
-        templatePath = 'C:/Users/clavi/Downloads/ruby/template.png'
-        self.template = thresholding(cv2.imread(templatePath), tVal=TH_RUBY)
+        dayRubyPath = 'C:/Users/clavi/Downloads/ruby/template_day.png'
+        nightRubyPath = 'C:/Users/clavi/Downloads/ruby/template_night.png'
+        self.template_ruby_day = thresholding(cv2.imread(dayRubyPath), tVal=TH_RUBY_DAY)
+        self.template_ruby_night = thresholding(cv2.imread(nightRubyPath), tVal=TH_RUBY_NIGHT)
         if methodName is not None:
             self.setMethodName(methodName)
         self.view = None
@@ -94,8 +94,8 @@ class Sweeper:
         self.methodName = name
         self.method = eval(name)
 
-    def setTemplate(self,template):
-        self.template = template
+    #def setTemplate(self,template):
+     #   self.template = template
     
     def setView( self, view ):
         self.view = view
@@ -123,18 +123,37 @@ class Sweeper:
             cMax = max( contours, key=cv2.contourArea)
             x,y,w,h = cv2.boundingRect(cMax)
             coords_part = topLeft[y+int(0.1*h):y+int(0.8*h),x+w:x+int(2.1*w)]
+            coords_gray = 255-cv2.cvtColor(coords_part, cv2.COLOR_BGR2GRAY)
 
             #coords_yuv = cv2.cvtColor(coords_part, cv2.COLOR_BGR2YUV)
             #oords_yuv[:, :, 0] = cv2.equalizeHist(coords_yuv[:, :, 0])
             #coords_rgb = cv2.cvtColor(coords_yuv, cv2.COLOR_YUV2RGB)
+
+            
+
+            
+
             coords_txt = self.ocr.read(coords_part,config='-l eng --oem 1 --psm 7')
-            print(coords_txt)
+            
+
             txt = re.sub('\D',' ', coords_txt)
+            print(txt)
             split = re.split('\s+', txt)
-            for s in split:
-                digits = re.sub('\D', '', s)
-                if (digits != ''):
-                    print(digits)
+            split = [e for e in split if e != '']
+            if( len(split) != 3 ):
+                ret,coord_removed_bg = self.ocr.removeBackground(coords_gray, kernel1=1, kernel2=5)
+                self.setViewImage(coord_removed_bg)
+                coords_txt = self.ocr.read(coord_removed_bg,config='-l eng --oem 1 --psm 7')
+                txt = re.sub('\D',' ', coords_txt)
+                print(txt)
+                split = re.split('\s+', txt)
+                split = [e for e in split if e != '']
+
+            if( len(split) == 3):
+                for i in range(0,3):
+                    digits = re.sub('\D', '', split[i])
+                    if (digits != ''):
+                        print(digits)
 
 
     
@@ -143,8 +162,13 @@ class Sweeper:
         contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         cMax = max( contours, key=cv2.contourArea)
         x,y,w,h = cv2.boundingRect(cMax)
+        cMaxArea = w * h
+        ih, iw = img_thresh.shape[:2]
+        imgArea = iw * ih
 
-        if w * 1.5 < self.bbox[2]:
+        areaPercentage = cMaxArea / imgArea
+        print('areaPercentage: ' + str(areaPercentage))
+        if bool( cMaxArea < imgArea * 0.8 ) and bool( cMaxArea > imgArea * 0.1 ):
             part_to_ocr = img_src[y:y+int(h*0.2),x:x+w]
             part_pre = self.ocr.preprocessing( part_to_ocr )[1]
             ocr_txt = str(self.ocr.read(part_pre,config='-l kor --oem 1 --psm 3'))
@@ -175,23 +199,29 @@ class Sweeper:
             self.setViewText('state: unknown, time:' + str(self.time))
             return self.STATE_UNKNOWN
 
-    def bigContourExist( self, img_src, tVal ):
+    def bigContourExist( self, img_src, tVal, show=False ):
         img_thresh = thresholding(img_src, tVal)
         contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         if len(contours) > 0:
             c = max(contours, key = cv2.contourArea)
             h,w = img_src.shape[:2]
             x,y,cw,ch = cv2.boundingRect(c)
-            if bool( cw / w > 0.7 ) and bool( ch / h > 0.7):
+            if show is True:
+                img_color = cv2.cvtColor(img_thresh,cv2.COLOR_GRAY2RGB)
+                cv2.rectangle(img_color, (x,y),(x+cw,y+ch), (0,255,0),5)
+                self.setViewImage(img_color)
+            if bool( cw > 0.7 * w) and bool( ch > 0.7 * h):
                 bbox = [x,y,x+cw,y+ch]
                 return (True, bbox, img_thresh)
         return (False,)
             
     def detectNightAndDay( self, img_src):
-        daytime = self.bigContourExist(img_src, TH_TIME)[0]
+        daytime = self.bigContourExist(img_src, TH_TIME, show=False)[0]
         if daytime is True:
+            print('day')
             return self.TIME_DAY
         else:
+            print('night')
             return self.TIME_NIGHT
 
     def detectState(self, pw, ph):
@@ -217,20 +247,33 @@ class Sweeper:
         return None
 
     def findRuby(self):
-        if self.template is not None:
-            img_th = thresholding(self.img_src, 90)
+        img_th = None
+        match_result = None
+
+        if( self.time == self.TIME_DAY ):
+            img_th = thresholding(self.img_src, TH_RUBY_DAY)
+            match_result = self.multiScaleMatch( self.template_ruby_day, img_th )
+        elif( self.time == self.TIME_NIGHT ):
+            img_th = thresholding(self.img_src, TH_RUBY_NIGHT)
+            match_result = self.multiScaleMatch( self.template_ruby_night, img_th )
+        
+        if img_th is not None:
             self.setViewImage(img_th)
+        if match_result is not None:
+            matched = cv2.cvtColor(img_th, cv2.COLOR_GRAY2RGB)
+            matchVal,top_left,bottom_right,r = match_result
+            
+            restoredTopLeft = (int(r*top_left[0]),int(r*top_left[1]))
+            restoredBottomRight = (int(r*bottom_right[0]),int(r*bottom_right[1]))
 
-            match_result = self.multiScaleMatch( self.template, img_th )
-
-            if match_result is not None:
-                matchVal,matched,top_left,bottom_right,r = match_result
-                cv2.rectangle(matched, top_left,bottom_right, (0,0,255),5)
-                self.setViewImage(matched)
-                self.setViewText('보석 발견 (매칭값: '+str(matchVal)+')')
-                return (int(r*(top_left[0]+bottom_right[0])//2+self.bbox[0]),int(r*(top_left[1]+bottom_right[1])//2+self.bbox[1]))
-            else:
-                self.setViewText('보석 없심더...')
+            cv2.rectangle(matched, restoredTopLeft,restoredBottomRight, (0,0,255),5)
+            self.setViewImage(matched)
+            self.setViewText('보석 발견 (매칭값: '+str(matchVal)+')')
+            return ( 
+                (restoredTopLeft[0]+restoredBottomRight[0]) // 2 + self.bbox[0],
+                (restoredTopLeft[1]+restoredBottomRight[1]) // 2 + self.bbox[1] )
+        else:
+            self.setViewText('보석 없심더...')
 
             return None
 

@@ -76,7 +76,7 @@ class SweeperView(QVBoxLayout):
     def setScreenImage(self, img):
 
         pixmap = image2pixmap(img)
-        if pixmap.width() > pixmap.height():
+        if pixmap.width() * 2 > pixmap.height() * 3:
             self.screenView.setPixmap( pixmap.scaledToWidth( int(self.width * 0.95) ) )
         else:
             self.screenView.setPixmap( pixmap.scaledToHeight( int(self.height * 0.95) ) )
