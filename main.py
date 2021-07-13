@@ -4,22 +4,20 @@ import pyautogui
 from PyQt5.QtWidgets import QApplication
 from ocr import OcrEngine
 from mainui import RokAMU
-from minimap import MiniMap
+from sweeper import Sweeper
 
 if __name__ == '__main__':
     print(sys.argv)
 
-    
+    app = QApplication(sys.argv)
+    print( str(app.quitOnLastWindowClosed()) )
+
     systemResolution = pyautogui.size() #get screensize
     print(f"width={systemResolution[0]}\theight={systemResolution[1]}")
-
-    app = QApplication(sys.argv)
-
     ocr = OcrEngine('-l eng+kor --oem 1 --psm3') #default config
-    rokAiMainUi = RokAMU(systemResolution, ocr)
+    sweeper = Sweeper( ocr ) # default TM_option
+    rokAiMainUi = RokAMU(systemResolution, sweeper)
     rokAiMainUi.show()
+    
 
-    rokMiniMap = MiniMap(rokAiMainUi.centralWidget())
-    rokMiniMap.show()
-
-    exit(app.exec_())
+    sys.exit(app.exec_())

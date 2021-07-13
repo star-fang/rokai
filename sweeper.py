@@ -1,7 +1,6 @@
 from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtGui import QImage
 import cv2
-from PIL import Image, ImageGrab
+from PIL import ImageGrab
 import numpy as np
 import imutils
 import os
@@ -10,19 +9,17 @@ import re
 TH_FIND_APP = 60
 TH_RUBY_DAY = 90
 TH_RUBY_NIGHT = 60
-TH_TIME = 127
+TH_NIGHT_AND_DAY = 127
 TH_DIALOG = 127
 TH_CRACK = 127
-TH_DIALOG_HEAD_RATIO = 0.12
+RATIO_HEAD_IN_DIALOG = 0.12
+TH_CONTRAST_RATIO_WB_ND = 0.3 # lower -> night, upper -> daytime
 
-#edge detection(Canny) vs thresholdng
-def thresholding(image, tVal=127, option=None, isGray=False):
+def globalThresholding(image, tVal=127, isGray=False):
     if isGray:
         img_gray = image
     else:
         img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    if option is not None:
-        return cv2.adaptiveThreshold(img_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)
 
     return cv2.threshold(img_gray, tVal, 255, cv2.THRESH_BINARY)[1]
 
@@ -37,7 +34,6 @@ def findContourList(img, *args):
         im2, contours, hierarchy = cv2.findContours(img, mode=args[0], method=args[1])
 
     return contours
-
 
 def match(template, resized, method, mThreshold):
         th, tw = template.shape[:2]
@@ -71,36 +67,33 @@ def rotateImage( image, angle ):
     return rotated
 
 class Worker(QObject):
-    WORK_DETECT_STATE = 1
+    WORK_DETECT_SCREEN = 0
+    WORK_IDENTIFY_STATE = 1 #dialog / normal -> night and day -> coords / unkonown
     WORK_CRACK = 2
     WORK_RUBY = 3
 
     finished = pyqtSignal()
+    changeLocation = pyqtSignal(int,int,int)
     state = pyqtSignal(int)
     stateReport = pyqtSignal(str)
-    changeScreen = pyqtSignal(object) # image matrix
+    changeScreen = pyqtSignal(object) # image matrix, rect
     changeTemplate = pyqtSignal(object) # image matrix
     tm_ratio = pyqtSignal(int)
     tm_rotate = pyqtSignal(int)
+    location = pyqtSignal(int, int, int)
+
+    def setWork( self, work):
+        self.work = work
 
     def run(self):
-        if( self.work == self.WORK_CRACK):
-            self.sweeper.crackRobotCheck( self.changeScreen, self.changeTemplate, self.tm_ratio, self.tm_rotate )
-        elif( self.work == self.WORK_DETECT_STATE):
-            detected = self.sweeper.detectState()
-            if detected is None:
-                self.stateReport.emit('화면 감지 실패: 앱플레이어를 실행하고 화면 감지 버튼을 다시 눌러보세요')
-            else:
-                img_rgb = cv2.cvtColor(detected,cv2.COLOR_BGR2RGB)
-                self.changeScreen.emit( img_rgb )
-
-                state, report = self.sweeper.identifyState(detected)
-                print(report)
-                self.state.emit(state)
-                self.stateReport.emit(report)
-
+        if( self.work == self.WORK_IDENTIFY_STATE):
+            self.sweeper.identifyState(self.changeScreen, self.stateReport, self.state, self.changeLocation)
         elif( self.work == self.WORK_RUBY):
             self.sweeper.findRuby(self.changeScreen, self.changeTemplate, self.tm_ratio)
+        elif( self.work == self.WORK_CRACK):
+            self.sweeper.crackRobotCheck( self.changeScreen, self.changeTemplate, self.tm_ratio, self.tm_rotate )
+        elif( self.work == self.WORK_DETECT_SCREEN):
+            self.sweeper.detectScreen(self.changeScreen, self.stateReport, self.state)
 
         self.finished.emit()
 
@@ -109,9 +102,8 @@ class Worker(QObject):
         self.work = work
         self.sweeper = sweeper
 
-
 #A ruby finder in rok
-class Sweeper(QObject):
+class Sweeper():
 
     TIME_NIGHT = 0
     TIME_DAY = 1
@@ -120,71 +112,85 @@ class Sweeper(QObject):
     STATE_CHECK_ROBOT1 = 1
     STATE_CHECK_ROBOT2 = 2
 
+    DET_STATE_SCREEN_RECOG = 10
+    DET_STATE_NO_SCREEN = 99
+
 
     def __init__(self, ocr, methodName='cv2.TM_CCOEFF_NORMED', detectionPart=[2,2,802,602]):
         dayRubyPath = 'C:/Users/clavi/Downloads/ruby/template_day.png'
         nightRubyPath = 'C:/Users/clavi/Downloads/ruby/template_night.png'
-        self.template_ruby_day = thresholding(cv2.imread(dayRubyPath), tVal=TH_RUBY_DAY)
-        self.template_ruby_night = thresholding(cv2.imread(nightRubyPath), tVal=TH_RUBY_NIGHT)
+        self.template_ruby_day = globalThresholding(cv2.imread(dayRubyPath), tVal=TH_RUBY_DAY)
+        self.template_ruby_night = globalThresholding(cv2.imread(nightRubyPath), tVal=TH_RUBY_NIGHT)
         if methodName is not None:
             self.setMethodName(methodName)
         self.ocr = ocr
         self.detectionPart = detectionPart
-
-    def setDetectionPart( self, detectionPart ):
-        self.detectionPart = detectionPart
+        self.bbox = detectionPart
+        self.img_src = None
+        self.worker = Worker(self)
+    
+    def setDetectionPart( self, ax, ay, aw, ah ):
+        self.detectionPart = [ax, ay, ax+aw, ay+ah]
+        #print(self.detectionPart)
     
     def setMethodName(self, name):
         self.methodName = name
         self.method = eval(name)
 
-    def detectCoordinates(self, img_src):
+    def detectCoordinates(self, img_src, locationSign):
         imgHeight, imgWidth = img_src.shape[:2]
         topLeft = img_src[0:int(imgHeight*0.07),0:int(imgWidth*0.5)]
-        topLeft_extreme_th = thresholding(topLeft, 160, isGray=False)
+        topLeft_extreme_th = globalThresholding(topLeft, 160, isGray=False)
         contours = findContourList(topLeft_extreme_th, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
        
 
         if len(contours) > 0:
-            cMax = max( contours, key=cv2.contourArea)
-            x,y,w,h = cv2.boundingRect(cMax)
-            coords_part = topLeft[y+int(0.1*h):y+int(0.8*h),x+w:x+int(2.1*w)]
-            coords_gray = 255-cv2.cvtColor(coords_part, cv2.COLOR_BGR2GRAY)
+            try:
+                cMax = max( contours, key=cv2.contourArea)
+                x,y,w,h = cv2.boundingRect(cMax)
+                coords_part = topLeft[y+int(0.1*h):y+int(0.8*h),x+w:x+int(2.1*w)]
+                coords_gray = 255-cv2.cvtColor(coords_part, cv2.COLOR_BGR2GRAY)
 
-            #coords_yuv = cv2.cvtColor(coords_part, cv2.COLOR_BGR2YUV)
-            #oords_yuv[:, :, 0] = cv2.equalizeHist(coords_yuv[:, :, 0])
-            #coords_rgb = cv2.cvtColor(coords_yuv, cv2.COLOR_YUV2RGB)
-
+                #coords_yuv = cv2.cvtColor(coords_part, cv2.COLOR_BGR2YUV)
+                #oords_yuv[:, :, 0] = cv2.equalizeHist(coords_yuv[:, :, 0])
+                #coords_rgb = cv2.cvtColor(coords_yuv, cv2.COLOR_YUV2RGB)
+    
+                coords_txt = self.ocr.read(coords_part,config='-l eng --oem 1 --psm 7')
             
 
-            
-
-            coords_txt = self.ocr.read(coords_part,config='-l eng --oem 1 --psm 7')
-            
-
-            txt = re.sub('\D',' ', coords_txt)
-            print(txt)
-            split = re.split('\s+', txt)
-            split = [e for e in split if e != '']
-            if( len(split) != 3 ):
-                ret,coord_removed_bg = self.ocr.removeBackground(coords_gray, kernel1=1, kernel2=5)
-
-                coords_txt = self.ocr.read(coord_removed_bg,config='-l eng --oem 1 --psm 7')
                 txt = re.sub('\D',' ', coords_txt)
                 print(txt)
                 split = re.split('\s+', txt)
                 split = [e for e in split if e != '']
+                if( len(split) != 3 ):
+                    ret,coord_removed_bg = self.ocr.removeBackground(coords_gray, kernel1=1, kernel2=5)
 
-            if( len(split) == 3):
-                for i in range(0,3):
-                    digits = re.sub('\D', '', split[i])
-                    if (digits != ''):
-                        print(digits)
+                    coords_txt = self.ocr.read(coord_removed_bg,config='-l eng --oem 1 --psm 7')
+                    txt = re.sub('\D',' ', coords_txt)
+                    print(txt)
+                    split = re.split('\s+', txt)
+                    split = [e for e in split if e != '']
+
+                if( len(split) == 3):
+                    digits = []
+                    for i in range(0,3):
+                        digits.append( int(split[i]) )
+                    locationSign.emit(digits[0],digits[1],digits[2])
+                return coords_txt
+            except:
+                return 'error occured'
+        return 'nothing to recognize'
+        
 
 
-    
-    def identifyState(self, img_src): #detect state using ocr
-        img_thresh = thresholding(img_src, TH_DIALOG)
+    def identifyState(self, screenSign, reportSign, stateSign, locationSign): #detect state using ocr
+
+        img_pil = ImageGrab.grab(bbox=self.bbox)
+        self.img_src = np.array(img_pil)
+        img_src = self.img_src.copy()
+        img_rgb = cv2.cvtColor( img_src, cv2.COLOR_BGR2RGB )
+
+        img_thresh = globalThresholding(img_src, TH_DIALOG)
         contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         cMax = max( contours, key=cv2.contourArea)
         x,y,w,h = cv2.boundingRect(cMax)
@@ -195,7 +201,8 @@ class Sweeper(QObject):
         areaPercentage = cMaxArea / imgArea
         print('areaPercentage: ' + str(areaPercentage))
         if bool( cMaxArea < imgArea * 0.8 ) and bool( cMaxArea > imgArea * 0.1 ):
-            part_to_ocr = img_src[y:y+int(h*TH_DIALOG_HEAD_RATIO),x:x+w]
+            screenSign.emit( img_rgb[y:y+h, x:x+w] )
+            part_to_ocr = img_src[y:y+int(h*RATIO_HEAD_IN_DIALOG),x:x+w]
             part_gray, part_thresh = self.ocr.preprocessing( part_to_ocr )
 
             ocr_txt = str(self.ocr.read(part_thresh,config='-l kor --oem 1 --psm 7'))
@@ -208,65 +215,75 @@ class Sweeper(QObject):
                 orc_txt_no_lines = os.linesep.join([s for s in ocr_txt.splitlines() if s])
                 ocr_txt_no_blank = orc_txt_no_lines.replace(' ','')
                 print('ocr_in_block(gray):' + ocr_txt_no_blank)
-        else:
-            ocr_txt_no_blank = None
+        else: # normal state
+            screenSign.emit( img_rgb )
+            wbRatio, timeName = self.detectNightAndDay(img_src)
+            coordinatesTxt = self.detectCoordinates(img_src, locationSign)
+            stateSign.emit(self.STATE_NORMAL)
+            reportSign.emit('state: normal\ncontrast ratio:' + str(wbRatio) + '(' + timeName + ')\nlocation(ocr):' +  str(coordinatesTxt))
+            return
 
-        if ocr_txt_no_blank is None:
-            self.detectCoordinates(img_src)
-            return (self.STATE_NORMAL,'state: normal\ntime:' + str(self.time))
-        elif '사용' in ocr_txt_no_blank:
-            return (self.STATE_CHECK_ROBOT2,'state: check robot1\ntime:' + str(self.time))
+        if '사용' in ocr_txt_no_blank:
+            stateSign.emit(self.STATE_CHECK_ROBOT2)
+            reportSign.emit('state: check robot2')
         elif '보상' in ocr_txt_no_blank:
-            return (self.STATE_CHECK_ROBOT1, 'state: check robot2\ntime:' + str(self.time))
+            stateSign.emit(self.STATE_CHECK_ROBOT1)
+            reportSign.emit('state: check robot1')
         else:
-            return (self.STATE_UNKNOWN,'state: unknown\ntime:' + str(self.time))
+            stateSign.emit(self.STATE_UNKNOWN)
+            reportSign.emit('state: unknown')
 
-    def bigContourExist( self, img_src, tVal, marginRate=0.7, show=False ):
-        img_thresh = thresholding(img_src, tVal)
+    def bigContourExist( self, img_src, tVal, marginRate=0.7 ):
+        img_thresh = globalThresholding(img_src, tVal)
         contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        img_color = cv2.cvtColor(img_thresh,cv2.COLOR_GRAY2RGB)
         if len(contours) > 0:
             c = max(contours, key = cv2.contourArea)
             h,w = img_src.shape[:2]
             x,y,cw,ch = cv2.boundingRect(c)
-            if show is True:
-                img_color = cv2.cvtColor(img_thresh,cv2.COLOR_GRAY2RGB)
-                cv2.rectangle(img_color, (x,y),(x+cw,y+ch), (0,255,0),5)
-                #self.changeScreen.emit( mat2Qim( img_color))
+            cv2.rectangle(img_color, (x,y),(x+cw,y+ch), (0,255,0),5)
             if bool( cw > marginRate * w) and bool( ch > marginRate * h):
                 bbox = [x,y,x+cw,y+ch]
-                return (True, bbox, img_thresh)
-        return (False,)
+                return (True, bbox, img_color)
+        return (False,None,img_color)
             
     def detectNightAndDay( self, img_src):
-        daytime = self.bigContourExist(img_src, TH_TIME, marginRate=0.6, show=False)[0]
-        if daytime is True:
-            print('day')
-            return self.TIME_DAY
-        else:
-            print('night')
-            return self.TIME_NIGHT
+        img_thresh = globalThresholding( img_src, tVal = TH_NIGHT_AND_DAY )
 
-    def detectState(self):
+        number_of_white = np.sum(img_thresh == 255)
+        number_of_black = np.sum(img_thresh == 0)
+
+        wbRatio = round(number_of_white/number_of_black, 2)
+        print( 'white/balck : ' + str(wbRatio) )
+        
+        daytime = bool(TH_CONTRAST_RATIO_WB_ND < wbRatio)
+        
+        if daytime is True:
+            self.time = self.TIME_DAY
+            return( wbRatio, '낮')
+        else:
+            self.time = self.TIME_NIGHT
+            return( wbRatio, '밤')
+
+
+    def detectScreen(self, screenSign, reportSign, stateSign):
         img_pil = ImageGrab.grab(bbox=self.detectionPart)
         img_src = np.array(img_pil)
 
-        contourExist = self.bigContourExist(img_src, TH_FIND_APP, marginRate=0.6, show=True)
+        contourExist, bbox, detected = self.bigContourExist(img_src, TH_FIND_APP, marginRate=0.6)
         
-        if contourExist[0] is True:
-            self.bbox = contourExist[1]
+        if contourExist is True:
+            x1, y1 = self.detectionPart[:2]
+            x3, y3, x4, y4 = bbox
+            self.bbox = [x1 + x3, y1 + y3, x1 + x4, y1 + y4]
+            stateSign.emit( self.DET_STATE_SCREEN_RECOG)
+            reportSign.emit('')
             print('---screen detected ' + str(self.bbox))
-            detected = img_src[self.bbox[1]:self.bbox[3],self.bbox[0]:self.bbox[2]]
-            
-            #self.changeScreen.emit( mat2Qim( img_rgb ))
-            
-            self.time = self.detectNightAndDay( img_src )
-            
-            self.img_src = detected
-
-            return detected
-
-        print('---screen detection failure')       
-        return None
+        else:
+            stateSign.emit( self.DET_STATE_NO_SCREEN)
+            reportSign.emit('화면 감지 실패: 앱플레이어 크기를 조정해보세요')
+            print('---screen detection failure')
+        screenSign.emit( detected )
 
     def findRuby(self, screenSign, templateSign, ratioSign):
         img_th = None
@@ -274,11 +291,11 @@ class Sweeper(QObject):
 
         if( self.time == self.TIME_DAY ):
             templateSign.emit( self.template_ruby_day )
-            img_th = thresholding(self.img_src, TH_RUBY_DAY)
+            img_th = globalThresholding(self.img_src, TH_RUBY_DAY)
             match_result = self.multiScaleMatch( self.template_ruby_day, img_th, signal = ratioSign )
         elif( self.time == self.TIME_NIGHT ):
             templateSign.emit( self.template_ruby_night )
-            img_th = thresholding(self.img_src, TH_RUBY_NIGHT)
+            img_th = globalThresholding(self.img_src, TH_RUBY_NIGHT)
             match_result = self.multiScaleMatch( self.template_ruby_night, img_th, signal = ratioSign )
             
         
@@ -323,7 +340,7 @@ class Sweeper(QObject):
     def crackRobotCheck( self, signal_screen, signal_template, signal_ratio, signal_rotate, adjustMode=False ):
         #thresholding -> (multiscale <> ratate matching) -> click
         
-        img_thresh = thresholding(self.img_src, TH_CRACK)
+        img_thresh = globalThresholding(self.img_src, TH_CRACK)
 
         contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -339,13 +356,13 @@ class Sweeper(QObject):
             #img_dialog_head = cv2.cvtColor(np.array(img_pil)[y+2:y+2+int(0.2*h),x:x+w],cv2.COLOR_BGR2GRAY)
             
             #img_src_head = img_src[y:y+int(0.12*h),x:x+w]
-            img_dialog_head_thresh = img_thresh[y:y+int(TH_DIALOG_HEAD_RATIO*h),x:x+w]
+            img_dialog_head_thresh = img_thresh[y:y+int(RATIO_HEAD_IN_DIALOG*h),x:x+w]
             img_dialog_head_blur = cv2.GaussianBlur(img_dialog_head_thresh,(3,3),0)  #advanced config # blur value
             img_dialog_head_canny = cv2.Canny(img_dialog_head_blur, 50, 100)  #advanced config # canny value
 
             #img_dialog = img_src[y:y+h,x:x+w]
-            img_dialog_content= self.img_src[y+int(TH_DIALOG_HEAD_RATIO*h):y+h,x:x+w]
-            img_dialog_head = self.img_src[y:y+int(TH_DIALOG_HEAD_RATIO*h),x:x+w]
+            img_dialog_content= self.img_src[y+int(RATIO_HEAD_IN_DIALOG*h):y+h,x:x+w]
+            img_dialog_head = self.img_src[y:y+int(RATIO_HEAD_IN_DIALOG*h),x:x+w]
             
             
             signal_screen.emit( img_dialog_head_thresh )
