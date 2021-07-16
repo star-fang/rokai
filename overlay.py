@@ -1,10 +1,7 @@
 from PyQt5.QtWidgets import QMainWindow, QWidget
-from PyQt5.QtCore import QPointF, pyqtSignal, QObject, Qt
+from PyQt5.QtCore import QPointF, QThreadPool, pyqtSignal, QObject, Qt
 from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF
-
-class TranslucentWidgetSignals(QObject):
-    # SIGNALS
-    CLOSE = pyqtSignal()
+from sweeper import Sweeper, SweeperWorker
 
 class TranslucentWidget(QWidget):
     def __init__(self, parent=None):
@@ -19,8 +16,6 @@ class TranslucentWidget(QWidget):
 
         self.popup_fillColor = QColor(240, 240, 240, 255)
         self.popup_penColor = QColor(200, 200, 200, 255)
-
-        self.SIGNALS = TranslucentWidgetSignals()
 
     def paintEvent(self, event):
         # This method is, in practice, drawing the contents of
@@ -37,26 +32,17 @@ class TranslucentWidget(QWidget):
 
         qp.end()
 
-    def _onclose(self):
-        print("Close")
-        self.SIGNALS.CLOSE.emit()
-
-class OverlaySignals(QObject):
-    resizeSign = pyqtSignal(int,int,int,int)
-    closeButtonSignal = pyqtSignal()
-
-
-
 class Overlay(QMainWindow):
-    BORDER_THICKNESS = 14
+    BORDER_THICKNESS = 12
 
-    def __init__(self, amuSignals, parent=None):
+    def __init__(self, tracker, signId, amuSignals, threadPool: QThreadPool, sweeper: Sweeper, parent=None):
         QMainWindow.__init__(self, parent, Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
 
         widget = QWidget(self)
         self.setCentralWidget(widget)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
+        self.bboxColor = QColor(0, 255, 0, 200)
         self.boundaryColor = QColor(0, 0, 0, 255)
         self.movingBoundaryColor = QColor(255, 0, 0, 255)
         self.penColor = QColor(200, 200, 200, 10)
@@ -67,13 +53,45 @@ class Overlay(QMainWindow):
         self.pvPoint = None
         self._setGeoMode = 0 
 
-        self.signals = OverlaySignals()
-
-        self.amuSign = amuSignals.SIGN_OVERLAY
+        self.amuSign = signId
+        self.amuSignals = amuSignals
         amuSignals.hideSign.connect(self.toggleWindow)
         amuSignals.closeSign.connect(self.requestClose)
 
         self._closeflag = False
+
+        self.threadPool = threadPool
+        self.sweeper = sweeper
+        self.bbox = None
+        self._bboxFlag = False
+
+        self.tracker = tracker
+
+    def requestDetectScreenWork( self ):
+        
+        worker = SweeperWorker(self.sweeper, self.getInnerRect(), work=SweeperWorker.WORK_DETECT_SCREEN )
+        worker.getSignals().changeBbox.connect(self.setBbox)
+        self.threadPool.start(worker)
+
+    def getInnerRect(self):
+        rect = self.geometry().getRect()
+        x = rect[0] + self.BORDER_THICKNESS
+        y = rect[1] + self.BORDER_THICKNESS
+        w = rect[2] - 2 * self.BORDER_THICKNESS
+        h = rect[3] - 2 * self.BORDER_THICKNESS
+        return (x,y,w,h)
+
+    def setBbox( self, bbox):
+        x1,y1,x2,y2 = bbox
+        self.bbox = (x1+self.BORDER_THICKNESS,
+            y1+self.BORDER_THICKNESS,
+            x2+self.BORDER_THICKNESS,
+            y2+self.BORDER_THICKNESS)
+        self._bboxFlag = True
+        self.repaint()
+
+        x,y,w,h = self.getInnerRect()
+        #self.tracker.setBoundary.emit((x,y,x+w,y+h))
 
     def requestClose( self ):
         self._closeflag = True
@@ -85,9 +103,6 @@ class Overlay(QMainWindow):
                 self.hide()
             else:
                 self.show()
-
-    def getSignals( self ):
-        return self.signals
 
     def mousePressEvent(self, event):
         
@@ -139,12 +154,18 @@ class Overlay(QMainWindow):
 
 
         self._onpopup()
+        self.bbox = None
+        self._bboxFlag = False
         return super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
         self._setGeoMode = 0 
         self.pvPoint = None
         self._closepopup()
+
+        self.requestDetectScreenWork()
+        
+
         return super().mouseReleaseEvent(event)
 
 
@@ -240,20 +261,19 @@ class Overlay(QMainWindow):
 
         return super().mouseMoveEvent(event)
 
-    def paintEvent(self, event):
-        s = self.size()
-        lW = s.width()
-        lH = s.height()
-        #elWidth = lW//10
-        #elHeight = lH//10
-
+    def createBoundaryPolygons( self, bbox:tuple, thickness:int):
+        #x1,y1,x2,y2
         outP = []
         inP = []
+        #x1,y1 | x1+w , y1 | x1, y1+h | x1+w, y1+h
+        #x1,y1 | x2, y1 | x1, y2 | x2, y2
+        #0,1 | 2,1 | 0, 3 | 2,3 
+        #0,0 | 1,0 | 0, 1 | 1,1
         for i in range(0,4): # 0: 0,0 | 1: lW,0 | 2: 0,lH | 3: lW,lH
-            outter = [(i%2)*lW, (i//2)*lH]
+            outter = [bbox[2*(i%2)], bbox[1+2*(i//2)]]
             inner = outter.copy()
-            inner[0] += self.BORDER_THICKNESS*(1 if outter[0] == 0 else -1)
-            inner[1] += self.BORDER_THICKNESS*(1 if outter[1] == 0 else -1)
+            inner[0] += thickness*(1 if outter[0] == 0 else -1)
+            inner[1] += thickness*(1 if outter[1] == 0 else -1)
             
             outP.append( outter )
             inP.append( inner )
@@ -273,21 +293,35 @@ class Overlay(QMainWindow):
                 QPointF( inP[nextI][0],inP[nextI][1] ),
                 QPointF( inP[currI][0],inP[currI][1] )
                 ] )
-            trapezoid_list.append( trapezoid ) 
-        
+            trapezoid_list.append( trapezoid )
+        return trapezoid_list  
+
+    def paintEvent(self, event):
+        #print('paint overlay')
+        s = self.size()
+        lW = s.width()
+        lH = s.height()
         
         qp = QPainter()
         qp.begin(self)
         qp.setRenderHint(QPainter.Antialiasing, True)
         qp.setPen(QPen(self.penColor,2))
-        qp.setBrush(self.boundaryColor)
         
-        for polygon in trapezoid_list:
-            path = QPainterPath()
-            path.addPolygon(polygon)
-            qp.fillPath(path, qp.brush())
+        qp.setBrush(self.boundaryColor)
+        outB = self.createBoundaryPolygons((0,0,lW,lH), self.BORDER_THICKNESS)
+        for polygon in outB:
+            outPath = QPainterPath()
+            outPath.addPolygon(polygon)
+            qp.fillPath(outPath, qp.brush())
             qp.drawPolygon(polygon)
 
+        if self._bboxFlag and self.bbox is not None:
+            inB = self.createBoundaryPolygons(self.bbox, 5)
+            qp.setBrush(self.bboxColor)
+            for polygon in inB:
+                inPath = QPainterPath()
+                inPath.addPolygon(polygon)
+                qp.fillPath(inPath, qp.brush())
 
         qp.setBrush(self.movingBoundaryColor)
         qp.fillRect(lW-self.BORDER_THICKNESS, lH-4*self.BORDER_THICKNESS, self.BORDER_THICKNESS, 2*self.BORDER_THICKNESS, qp.brush())
@@ -299,13 +333,10 @@ class Overlay(QMainWindow):
         if self._popflag:
             self._popframe.move(0, 0)
             self._popframe.resize(geoRect[2], geoRect[3])
-        self.signals.resizeSign.emit(geoRect[0],geoRect[1],geoRect[2],geoRect[3])
 
     def moveEvent(self, event):
-        geoRect = self.geometry().getRect()
-        self.signals.resizeSign.emit(geoRect[0],geoRect[1],geoRect[2],geoRect[3])
         return super().moveEvent(event)
-
+    
     def _onpopup(self):
         self._popframe = TranslucentWidget(self.centralWidget())
         self._popframe.move(0, 0)
@@ -324,7 +355,7 @@ class Overlay(QMainWindow):
     
     def closeEvent(self, event):
         if self._closeflag is False:
-            self.signals.closeButtonSignal.emit()
+            self.amuSignals.closedSign.emit( self.amuSign )
             self.hide()
             event.ignore()
         else:

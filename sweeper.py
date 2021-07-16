@@ -1,12 +1,41 @@
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
 import cv2
 from PIL import ImageGrab
 import numpy as np
 import imutils
 import os
 import re
+from pathlib import Path
+from shape import ShapeDetector
+from threading import Lock
 
-TH_FIND_APP = 60
+'''
+state flow
+1.상태체크
+ a.팝업 확인 -> normar or dialog
+ normal: field or home // 낮밤 : multithreading and join
+ field: field or home // 좌표and좌표평가 // 루비 // 부대수 : multithreading and join
+ home: to field -> field or home
+
+ field or home : 좌표 -> 좌표확인 -> 중간클릭 -> 팝업 -> 팝업좌표확인 -> 일치 -> 내성 위치저장 and 팝업종료클릭 -> field
+                                                                    일치x -> 
+                                                    -> 좌표x ->
+                                           -> 팝업x -> 다시클릭(팝업까지)
+                      -> 좌표x -> 중간클릭 -> 팝업
+                                         -> 팝업x
+ field 버튼 ox 
+ 좌표 
+
+'''
+
+TH_BUTTON = 160
+
+TH_RECT_APP = 70
+
+TH_RECT_DIALOG1 = 70
+TH_RECT_DIALOG2 = 127
+TH_RECT_DIALOG3 = 160
+
 TH_RUBY_DAY = 90
 TH_RUBY_NIGHT = 60
 TH_NIGHT_AND_DAY = 127
@@ -66,189 +95,364 @@ def rotateImage( image, angle ):
     rotated = cv2.warpAffine(image, rotationMatrix, image.shape[1::-1], flags=cv2.INTER_LINEAR )
     return rotated
 
-class Worker(QObject):
-    WORK_DETECT_SCREEN = 0
-    WORK_IDENTIFY_STATE = 1 #dialog / normal -> night and day -> coords / unkonown
-    WORK_CRACK = 2
-    WORK_RUBY = 3
-
-    finished = pyqtSignal()
-    changeLocation = pyqtSignal(int,int,int)
-    state = pyqtSignal(int)
-    stateReport = pyqtSignal(str)
+class SweeperWorkerSignals(QObject):
+    changeLocation = pyqtSignal(tuple)
+    changeState = pyqtSignal(int)
+    reportState = pyqtSignal(str, bool)
     changeScreen = pyqtSignal(object) # image matrix, rect
     changeTemplate = pyqtSignal(object) # image matrix
-    tm_ratio = pyqtSignal(int)
-    tm_rotate = pyqtSignal(int)
-    location = pyqtSignal(int, int, int)
+    changeTmRatio = pyqtSignal(int)
+    changeTmRotate = pyqtSignal(int)
+    changeBbox = pyqtSignal(tuple)
+    finished = pyqtSignal()
 
-    def setWork( self, work):
-        self.work = work
+class SweeperWorkFlowSignals(QObject):
+    finished = pyqtSignal()
+
+class SweeperWorkFlow(QRunnable):
+    FLOW_IDF_STATE = 0
+    
+    def run(self):
+        if( self.flow == self.FLOW_IDF_STATE):
+          if self.sweeper.captureScreen():
+              self.workerSignals.reportState.emit('', False)
+              dialogDetected = self.sweeper.detectDialog(self.workerSignals)
+              if not dialogDetected:
+                mutex = Lock()
+                whenWorker = SweeperWorker(self.sweeper, work=SweeperWorker.WORK_WHEN, mutex=mutex, signals= self.workerSignals)
+                coordsWorker = SweeperWorker(self.sweeper, work=SweeperWorker.WORK_COORDINATES, mutex=mutex, signals= self.workerSignals)
+                whereWorker = SweeperWorker(self.sweeper, work=SweeperWorker.WORK_WHERE, mutex=mutex, signals= self.workerSignals)
+                countTrpsWorker = SweeperWorker(self.sweeper, work=SweeperWorker.WORK_CNT_TROOPS, mutex=mutex, signals= self.workerSignals)
+                checkRobotWorker = SweeperWorker(self.sweeper, work=SweeperWorker.WORK_CHECK_ROBOT, mutex=mutex, signals= self.workerSignals)
+
+                pool = QThreadPool()
+                pool.start(whenWorker)
+                pool.start(coordsWorker)
+                pool.start(whereWorker)
+                pool.start(countTrpsWorker)
+                pool.start(checkRobotWorker)
+
+                r = pool.waitForDone()
+                print(f'pool result:{r}')
+        self.signals.finished.emit()
+
+    def __init__(self, sweeper, *args, flow:int = 0):
+        QRunnable.__init__(self)
+        self.flow = flow
+        self.sweeper = sweeper
+        self.workerSignals = SweeperWorkerSignals()
+        self.signals = SweeperWorkFlowSignals()
+        self.args = args
+        if args is not None and len(args)> 0:
+            print( f'args of work flow: {args}')
+
+    def getWorkerSignals(self):
+        return self.workerSignals
+    
+    def getSignals(self):
+        return self.signals
+
+class SweeperWorker(QRunnable):
+    WORK_DETECT_SCREEN = 0
+
+    WORK_DIALOG_DET = 1 # find rect contours -> dialog / normal
+    #WORK_DIALOG_IDF = 2 # 
+
+    WORK_WHEN = 3 # night and day
+    WORK_COORDINATES = 4 # x,y
+    WORK_WHERE = 5 # home or field
+    WORK_CHECK_ROBOT = 6 # check robot button appeared
+    WORK_CNT_TROOPS = 7 # current troops count a / b
+
+    WORK_CRACK = 8
+    WORK_RUBY = 9
+
+    #normal state -> night and day
+    #             -> coordinates ( left upper )
+    #             -> field or home ( left lower )
+    #             -> check robot button ( right upper )
+    #             -> check troops count ( right middle )
+    # => join and report
+
+    #dialog state -> check robot -> crack
+    #             -> troop
+    #             -> ruby dialog
+    #             -> rss dialog
+    #             -> unkown dialog
 
     def run(self):
-        if( self.work == self.WORK_IDENTIFY_STATE):
-            self.sweeper.identifyState(self.changeScreen, self.stateReport, self.state, self.changeLocation)
+        if( self.work == self.WORK_DIALOG_DET):
+            bbox = self.sweeper.detectDialog(self.signals)
+            self.sweeper.identifyDialog(bbox, self.signals)
+        #elif( self.work == self.WORK_DIALOG_IDF):
+            
+        elif( self.work == self.WORK_COORDINATES):
+            self.sweeper.detectCoordinates(self.signals, self.mutex)
+        elif( self.work == self.WORK_WHERE):
+            self.sweeper.checkFieldOrHome(self.signals, self.mutex)
+        elif( self.work == self.WORK_WHEN):
+            self.sweeper.detectNightAndDay(self.signals, self.mutex)
+        elif( self.work == self.WORK_CHECK_ROBOT):
+            print('check robot')
+        elif( self.work == self.WORK_CNT_TROOPS):
+            print('count troops')
         elif( self.work == self.WORK_RUBY):
-            self.sweeper.findRuby(self.changeScreen, self.changeTemplate, self.tm_ratio)
+            self.sweeper.findRuby(self.signals)
         elif( self.work == self.WORK_CRACK):
-            self.sweeper.crackRobotCheck( self.changeScreen, self.changeTemplate, self.tm_ratio, self.tm_rotate )
+            self.sweeper.crackRobotCheck( self.signals )
         elif( self.work == self.WORK_DETECT_SCREEN):
-            self.sweeper.detectScreen(self.changeScreen, self.stateReport, self.state)
+            self.sweeper.detectScreen(self.signals, self.args)
+        self.signals.finished.emit()
 
-        self.finished.emit()
-
-    def __init__(self, sweeper, parent = None, work = 0):
-        QObject.__init__(self, parent)
+    def __init__(self, sweeper, *args, work:int = 0, mutex: Lock = None, signals = None):
+        QRunnable.__init__(self)
         self.work = work
         self.sweeper = sweeper
+        if signals is None:
+            self.signals = SweeperWorkerSignals()
+        else:
+            self.signals = signals
+        self.args = args
+        self.mutex = mutex
+        if args is not None and len(args)> 0:
+            print( f'args of worker: {args}')
+
+    def getSignals(self):
+        return self.signals
 
 #A ruby finder in rok
 class Sweeper():
 
     TIME_NIGHT = 0
     TIME_DAY = 1
-    STATE_UNKNOWN = -1
-    STATE_NORMAL = 0
-    STATE_CHECK_ROBOT1 = 1
-    STATE_CHECK_ROBOT2 = 2
-
-    DET_STATE_SCREEN_RECOG = 10
-    DET_STATE_NO_SCREEN = 99
+    
+    NO_DIALOG = 0
+    DIALOG_ROBOT1 = 1
+    DIALOG_ROBOT2 = 2
+    DIALOG_UNKNOWN = 3
 
 
-    def __init__(self, ocr, methodName='cv2.TM_CCOEFF_NORMED', detectionPart=[2,2,802,602]):
-        dayRubyPath = 'C:/Users/clavi/Downloads/ruby/template_day.png'
-        nightRubyPath = 'C:/Users/clavi/Downloads/ruby/template_night.png'
-        self.template_ruby_day = globalThresholding(cv2.imread(dayRubyPath), tVal=TH_RUBY_DAY)
-        self.template_ruby_night = globalThresholding(cv2.imread(nightRubyPath), tVal=TH_RUBY_NIGHT)
+
+    def __init__(self, ocr, methodName='cv2.TM_CCOEFF_NORMED'):
+        
+        
         if methodName is not None:
             self.setMethodName(methodName)
         self.ocr = ocr
-        self.detectionPart = detectionPart
-        self.bbox = detectionPart
-        self.img_src = None
-        self.worker = Worker(self)
-    
-    def setDetectionPart( self, ax, ay, aw, ah ):
-        self.detectionPart = [ax, ay, ax+aw, ay+ah]
-        #print(self.detectionPart)
+        self.bbox = (0,0,100,100)
+        self.img_src:np.ndarray = None
+        self.loadTmImages()
+        self.shapeDetector = ShapeDetector()
+
+    def loadTmImages(self):
+        source_path = Path(__file__).resolve()
+        assets_dir = str(source_path.parent) + '/assets'
+
+        self.template_ruby_day = globalThresholding(cv2.imread(f'{assets_dir}/ruby_day.png'), tVal=TH_RUBY_DAY)
+        self.template_ruby_night = globalThresholding(cv2.imread(f'{assets_dir}/ruby_night.png'), tVal=TH_RUBY_NIGHT)
+
+        self.template_to_field = globalThresholding(cv2.imread(f'{assets_dir}/btn_to_field.png'), tVal=TH_BUTTON)
+        self.template_to_home = globalThresholding(cv2.imread(f'{assets_dir}/btn_to_home.png'), tVal=TH_BUTTON)
+
+        self.template_robot_check = globalThresholding(cv2.imread(f'{assets_dir}/btn_robot.png'), tVal=TH_BUTTON)
+        self.template_expand_troops = globalThresholding(cv2.imread(f'{assets_dir}/btn_expand_troops.png'), tVal=TH_BUTTON)
+
+        #cv2.imshow('tm_field', self.template_to_field)
+        #cv2.imshow('tm_home', self.template_to_home)
+        #cv2.imshow('tm_robot', self.template_robot_check)
+        #cv2.imshow('tm_expand', self.template_expand_troops)
     
     def setMethodName(self, name):
         self.methodName = name
         self.method = eval(name)
 
-    def detectCoordinates(self, img_src, locationSign):
-        imgHeight, imgWidth = img_src.shape[:2]
-        topLeft = img_src[0:int(imgHeight*0.07),0:int(imgWidth*0.5)]
-        topLeft_extreme_th = globalThresholding(topLeft, 160, isGray=False)
-        contours = findContourList(topLeft_extreme_th, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-       
+    def checkFieldOrHome(self, signals: SweeperWorkerSignals, mutex:Lock):
+        if self.img_src is None or not isinstance(self.img_src,np.ndarray):
+            print('no image source')
+            return
+        imgHeight, imgWidth = self.img_src.shape[:2]
+        img_left_lower = self.img_src[int( imgHeight*0.7 ): imgHeight, 0: int( imgWidth * 0.3)]
+        try:
+            img_th = globalThresholding(img_left_lower, TH_BUTTON)
+            
+            match_result = self.multiScaleMatch( self.template_to_home, img_th, signals = signals )
 
-        if len(contours) > 0:
+            if match_result is not None:
+                matched = cv2.cvtColor(img_th, cv2.COLOR_GRAY2RGB)
+                matchVal,top_left,bottom_right,r = match_result
+                restoredTopLeft = (int(r*top_left[0]),int(r*top_left[1]))
+                restoredBottomRight = (int(r*bottom_right[0]),int(r*bottom_right[1]))
+
+                signals.reportState.emit('where: field',True)
+            else:
+                match_result = self.multiScaleMatch( self.template_to_field, img_th, signals = signals )
+                if match_result is not None:
+                    signals.reportState.emit('where: home',True)
+
+            if match_result is None:
+               signals.reportState.emit('where: ??',True) 
+
+        except Exception as e:
+            signals.reportState.emit(f'where: {e}',True)
+
+    def detectCoordinates(self, signals:SweeperWorkerSignals, mutex:Lock):
+        if self.img_src is None or not isinstance(self.img_src,np.ndarray):
+            print('no image source')
+            return
+        imgHeight, imgWidth = self.img_src.shape[:2]
+
+        img_topLeft = self.img_src[0:int(imgHeight*0.1),0:int(imgWidth*0.5)]
+
+        rectExist,bbox, detected  = self.selectBigRectContour(img_topLeft,150, minRate=0.1, maxRate=0.6)
+       
+        if rectExist:
             try:
-                cMax = max( contours, key=cv2.contourArea)
-                x,y,w,h = cv2.boundingRect(cMax)
-                coords_part = topLeft[y+int(0.1*h):y+int(0.8*h),x+w:x+int(2.1*w)]
-                coords_gray = 255-cv2.cvtColor(coords_part, cv2.COLOR_BGR2GRAY)
+                x,y,x2,y2 = bbox
+                w = x2-x
+                h = y2-y
+                coords_part = img_topLeft[y+int(0.1*h):y+int(0.8*h),x+w:x+int(2.1*w)]
 
                 #coords_yuv = cv2.cvtColor(coords_part, cv2.COLOR_BGR2YUV)
                 #oords_yuv[:, :, 0] = cv2.equalizeHist(coords_yuv[:, :, 0])
                 #coords_rgb = cv2.cvtColor(coords_yuv, cv2.COLOR_YUV2RGB)
     
                 coords_txt = self.ocr.read(coords_part,config='-l eng --oem 1 --psm 7')
-            
-
+                coords_txt = coords_txt.replace('\n',' ')
+                
                 txt = re.sub('\D',' ', coords_txt)
-                print(txt)
+                
                 split = re.split('\s+', txt)
                 split = [e for e in split if e != '']
                 if( len(split) != 3 ):
+                    coords_gray = 255-cv2.cvtColor(coords_part, cv2.COLOR_BGR2GRAY)
                     ret,coord_removed_bg = self.ocr.removeBackground(coords_gray, kernel1=1, kernel2=5)
 
                     coords_txt = self.ocr.read(coord_removed_bg,config='-l eng --oem 1 --psm 7')
+                    coords_txt = coords_txt.replace('\n',' ')
                     txt = re.sub('\D',' ', coords_txt)
-                    print(txt)
+                    
                     split = re.split('\s+', txt)
                     split = [e for e in split if e != '']
 
+                signals.reportState.emit( f'location(ocr): {coords_txt}', True )
                 if( len(split) == 3):
-                    digits = []
+                    digits = tuple()
                     for i in range(0,3):
-                        digits.append( int(split[i]) )
-                    locationSign.emit(digits[0],digits[1],digits[2])
-                return coords_txt
-            except:
-                return 'error occured'
-        return 'nothing to recognize'
-        
+                        digits += ( int(split[i]), )
+                    signals.changeLocation.emit(digits)
+                    signals.reportState.emit( f'location: #{digits[0]} x{digits[1]} y{digits[2]}', True )
+                return
+            except Exception as e:
+                signals.reportState.emit(f'ocr error:{e}', True)
+            signals.reportState.emit('no coordinates info', True)
 
+    def captureScreen( self ):
+        try:
+            # delete overlay componenets, move mouse to right lower part
+            img_pil = ImageGrab.grab(bbox=self.bbox)
+            self.img_src = np.array(img_pil)
+        except:
+            return False
+        return True
 
-    def identifyState(self, screenSign, reportSign, stateSign, locationSign): #detect state using ocr
+    def identifyDialog(self, bbox, signals: SweeperWorkerSignals):
+        if self.img_src is None or not isinstance(self.img_src,np.ndarray):
+            print('no image source')
+            return
+            
+        x, y, x2, y2 = bbox
+        w = x2 - x
+        h = y2 - y
+        part_to_ocr = self.img_src[y:y+int(h*RATIO_HEAD_IN_DIALOG),x:x+w]
+        part_gray, part_thresh = self.ocr.preprocessing( part_to_ocr )
 
-        img_pil = ImageGrab.grab(bbox=self.bbox)
-        self.img_src = np.array(img_pil)
-        img_src = self.img_src.copy()
-        img_rgb = cv2.cvtColor( img_src, cv2.COLOR_BGR2RGB )
+        ocr_txt = str(self.ocr.read(part_thresh,config='-l kor --oem 1 --psm 7'))
+        orc_txt_no_lines = os.linesep.join([s for s in ocr_txt.splitlines() if s])
+        ocr_txt_no_blank = orc_txt_no_lines.replace(' ','')
+        print('ocr_in_block(thresh):' + ocr_txt_no_blank)
 
-        img_thresh = globalThresholding(img_src, TH_DIALOG)
-        contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        cMax = max( contours, key=cv2.contourArea)
-        x,y,w,h = cv2.boundingRect(cMax)
-        cMaxArea = w * h
-        ih, iw = img_thresh.shape[:2]
-        imgArea = iw * ih
-
-        areaPercentage = cMaxArea / imgArea
-        print('areaPercentage: ' + str(areaPercentage))
-        if bool( cMaxArea < imgArea * 0.8 ) and bool( cMaxArea > imgArea * 0.1 ):
-            screenSign.emit( img_rgb[y:y+h, x:x+w] )
-            part_to_ocr = img_src[y:y+int(h*RATIO_HEAD_IN_DIALOG),x:x+w]
-            part_gray, part_thresh = self.ocr.preprocessing( part_to_ocr )
-
-            ocr_txt = str(self.ocr.read(part_thresh,config='-l kor --oem 1 --psm 7'))
+        if( ocr_txt_no_blank == ''):
+            ocr_txt = str(self.ocr.read(part_gray,config='-l kor --oem 1 --psm 7'))
             orc_txt_no_lines = os.linesep.join([s for s in ocr_txt.splitlines() if s])
             ocr_txt_no_blank = orc_txt_no_lines.replace(' ','')
-            print('ocr_in_block(thresh):' + ocr_txt_no_blank)
-
-            if( ocr_txt_no_blank == ''):
-                ocr_txt = str(self.ocr.read(part_gray,config='-l kor --oem 1 --psm 7'))
-                orc_txt_no_lines = os.linesep.join([s for s in ocr_txt.splitlines() if s])
-                ocr_txt_no_blank = orc_txt_no_lines.replace(' ','')
-                print('ocr_in_block(gray):' + ocr_txt_no_blank)
-        else: # normal state
-            screenSign.emit( img_rgb )
-            wbRatio, timeName = self.detectNightAndDay(img_src)
-            coordinatesTxt = self.detectCoordinates(img_src, locationSign)
-            stateSign.emit(self.STATE_NORMAL)
-            reportSign.emit('state: normal\ncontrast ratio:' + str(wbRatio) + '(' + timeName + ')\nlocation(ocr):' +  str(coordinatesTxt))
-            return
-
+            print('ocr_in_block(gray):' + ocr_txt_no_blank)
+      
         if '사용' in ocr_txt_no_blank:
-            stateSign.emit(self.STATE_CHECK_ROBOT2)
-            reportSign.emit('state: check robot2')
+            signals.changeState.emit(self.DIALOG_ROBOT2)
+            signals.reportState.emit('state: check robot2', True)
         elif '보상' in ocr_txt_no_blank:
-            stateSign.emit(self.STATE_CHECK_ROBOT1)
-            reportSign.emit('state: check robot1')
+            signals.changeState.emit(self.DIALOG_ROBOT1)
+            signals.reportState.emit('state: check robot1', True)
         else:
-            stateSign.emit(self.STATE_UNKNOWN)
-            reportSign.emit('state: unknown')
+            signals.changeState.emit(self.DIALOG_UNKNOWN)
+            signals.reportState.emit('state: unknown', True)
 
-    def bigContourExist( self, img_src, tVal, marginRate=0.7 ):
-        img_thresh = globalThresholding(img_src, tVal)
+    
+    def detectDialog(self, signals: SweeperWorkerSignals):
+        if self.img_src is None or not isinstance(self.img_src,np.ndarray):
+            print('no image source')
+            return True
+
+        for th in [TH_RECT_DIALOG2, TH_RECT_DIALOG3]:
+            contourExist, bbox, detected = self.selectBigRectContour(self.img_src, th, minRate=0.05, maxRate=0.6, max = True)
+            if contourExist:
+                break
+        if contourExist:
+            self.identifyDialog( bbox, signals )
+            return True
+        else:
+            img_rgb = cv2.cvtColor( self.img_src, cv2.COLOR_BGR2RGB )
+            signals.changeScreen.emit( img_rgb )
+            signals.changeState.emit(self.NO_DIALOG)
+            signals.reportState.emit('state: normal', True)
+            return False
+
+    def selectBigRectContour( self, img_src: np.ndarray, tVal, minRate=0.7, maxRate = 1.0, max = False ):
+        resized = imutils.resize(img_src, width = 300)
+        ratio = img_src.shape[0] / float(resized.shape[0])
+
+        gray = cv2.cvtColor( resized, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray,(3,3), 0 )
+        img_thresh = globalThresholding(blurred, tVal, isGray= True)
+
         contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        img_color = cv2.cvtColor(img_thresh,cv2.COLOR_GRAY2RGB)
-        if len(contours) > 0:
-            c = max(contours, key = cv2.contourArea)
-            h,w = img_src.shape[:2]
-            x,y,cw,ch = cv2.boundingRect(c)
-            cv2.rectangle(img_color, (x,y),(x+cw,y+ch), (0,255,0),5)
-            if bool( cw > marginRate * w) and bool( ch > marginRate * h):
-                bbox = [x,y,x+cw,y+ch]
-                return (True, bbox, img_color)
-        return (False,None,img_color)
+        detected = cv2.cvtColor(img_thresh,cv2.COLOR_GRAY2RGB)
+        contoursCount = len(contours)
+        if contoursCount > 0:
+            #cv2.imshow('aa', detected)
+            #cv2.waitKey()
+            ih,iw = resized.shape[:2]
+            contours.sort(key = cv2.contourArea, reverse=True)
+            fitContour = None
+            for i in range( 0, contoursCount):
+                contour = contours[i]
+                shape = self.shapeDetector.detect(contour)
+                cw,ch = cv2.boundingRect(contour)[2:]
+                areaCont = cw * ch
+                areaImg = iw * ih
+                if areaCont >= minRate * areaImg and areaCont <= maxRate * areaImg:
+                    if  shape == ShapeDetector.SHAPE_RECTANGLE or shape == ShapeDetector.SHAPE_SQUARE:
+                        fitContour = contour
+                        if max:
+                            break
+                else:
+                    print( f'bigContourFinder: stopped in {str(i)}try(s)')
+                    break
+            if fitContour is not None:
+                a, b, c, d = cv2.boundingRect(fitContour)
+                brect = [a, b, c, d]
+                for i in range(0, len(brect)):
+                    brect[i] = int( brect[i] * ratio )
+                x, y, w, h = brect
+                cv2.rectangle(detected, (a,b),(a+c,b+d), (0,255,0),3)
+                return (True, (x,y,x+w,y+h), detected)
+        return (False,None,detected)
             
-    def detectNightAndDay( self, img_src):
-        img_thresh = globalThresholding( img_src, tVal = TH_NIGHT_AND_DAY )
+    def detectNightAndDay( self, signals: SweeperWorkerSignals, mutex:Lock ):
+        if self.img_src is None or not isinstance(self.img_src,np.ndarray):
+            print('no image source')
+            return
+        img_thresh = globalThresholding( self.img_src, tVal = TH_NIGHT_AND_DAY )
 
         number_of_white = np.sum(img_thresh == 255)
         number_of_black = np.sum(img_thresh == 0)
@@ -260,48 +464,56 @@ class Sweeper():
         
         if daytime is True:
             self.time = self.TIME_DAY
-            return( wbRatio, '낮')
+            signals.reportState.emit(f'contrast ratio: {str(wbRatio)}\ntime: daytime', True)
         else:
             self.time = self.TIME_NIGHT
-            return( wbRatio, '밤')
+            signals.reportState.emit(f'contrast ratio: {str(wbRatio)}\ntime: night', True)
+            
 
+    def detectScreen(self, signals: SweeperWorkerSignals, args=None):
+        if args is None or len(args)==0:
+            print( 'no args')
+            return
+        rect = args[0]
+        if rect is None or not isinstance(rect, tuple) or len(rect) != 4 or not all(isinstance(n,int) for n in rect):
+            print( f'no rect: {str(rect)}')
+            return
 
-    def detectScreen(self, screenSign, reportSign, stateSign):
-        img_pil = ImageGrab.grab(bbox=self.detectionPart)
+        img_pil = ImageGrab.grab(bbox=[rect[0],rect[1],rect[0]+rect[2],rect[1]+rect[3]] )
         img_src = np.array(img_pil)
 
-        contourExist, bbox, detected = self.bigContourExist(img_src, TH_FIND_APP, marginRate=0.6)
+        contourExist, bbox, detected = self.selectBigRectContour(img_src, TH_RECT_APP, minRate=0.6)
         
         if contourExist is True:
-            x1, y1 = self.detectionPart[:2]
+            x1, y1 = rect[:2]
             x3, y3, x4, y4 = bbox
-            self.bbox = [x1 + x3, y1 + y3, x1 + x4, y1 + y4]
-            stateSign.emit( self.DET_STATE_SCREEN_RECOG)
-            reportSign.emit('')
-            print('---screen detected ' + str(self.bbox))
-        else:
-            stateSign.emit( self.DET_STATE_NO_SCREEN)
-            reportSign.emit('화면 감지 실패: 앱플레이어 크기를 조정해보세요')
-            print('---screen detection failure')
-        screenSign.emit( detected )
+            self.bbox = (x1 + x3, y1 + y3, x1 + x4, y1 + y4)
+            signals.changeBbox.emit( bbox )
+        signals.changeScreen.emit( detected )
 
-    def findRuby(self, screenSign, templateSign, ratioSign):
+    def findRuby(self, signals: SweeperWorkerSignals):
+        if self.img_src is None or not isinstance(self.img_src,np.ndarray):
+            print('no image source')
+            return
+        
         img_th = None
         match_result = None
 
-        if( self.time == self.TIME_DAY ):
-            templateSign.emit( self.template_ruby_day )
-            img_th = globalThresholding(self.img_src, TH_RUBY_DAY)
-            match_result = self.multiScaleMatch( self.template_ruby_day, img_th, signal = ratioSign )
-        elif( self.time == self.TIME_NIGHT ):
-            templateSign.emit( self.template_ruby_night )
-            img_th = globalThresholding(self.img_src, TH_RUBY_NIGHT)
-            match_result = self.multiScaleMatch( self.template_ruby_night, img_th, signal = ratioSign )
+        try:
+            if( self.time == self.TIME_DAY ):
+                signals.changeTemplate.emit( self.template_ruby_day )
+                img_th = globalThresholding(self.img_src, TH_RUBY_DAY)
+                match_result = self.multiScaleMatch( self.template_ruby_day, img_th, signals = signals )
+            elif( self.time == self.TIME_NIGHT ):
+                signals.changeTemplate.emit( self.template_ruby_night )
+                img_th = globalThresholding(self.img_src, TH_RUBY_NIGHT)
+                match_result = self.multiScaleMatch( self.template_ruby_night, img_th, signals = signals )
+        except AttributeError:
+            print('attribute error')
             
         
         if img_th is not None:
-            a=1
-            screenSign.emit( img_th )
+            signals.changeScreen.emit( img_th )
         if match_result is not None:
             matched = cv2.cvtColor(img_th, cv2.COLOR_GRAY2RGB)
             matchVal,top_left,bottom_right,r = match_result
@@ -310,7 +522,7 @@ class Sweeper():
             restoredBottomRight = (int(r*bottom_right[0]),int(r*bottom_right[1]))
 
             cv2.rectangle(matched, restoredTopLeft,restoredBottomRight, (0,0,255),5)
-            screenSign.emit(matched)
+            signals.changeScreen.emit(matched)
             #self.setViewText('보석 발견 (매칭값: '+str(matchVal)+')')
             return ( 
                 (restoredTopLeft[0]+restoredBottomRight[0]) // 2 + self.bbox[0],
@@ -337,7 +549,10 @@ class Sweeper():
         self.c_dst = cv2.Canny(cv2.GaussianBlur(self.c_src,(self.gb,self.gb),0) , self.th1, self.th2)
         cv2.imshow(self.windowName, self.c_dst) 
 
-    def crackRobotCheck( self, signal_screen, signal_template, signal_ratio, signal_rotate, adjustMode=False ):
+    def crackRobotCheck( self, signals: SweeperWorkerSignals, adjustMode=False ):
+        if self.img_src is None or not isinstance(self.img_src,np.ndarray):
+            print('no image source')
+            return
         #thresholding -> (multiscale <> ratate matching) -> click
         
         img_thresh = globalThresholding(self.img_src, TH_CRACK)
@@ -365,7 +580,7 @@ class Sweeper():
             img_dialog_head = self.img_src[y:y+int(RATIO_HEAD_IN_DIALOG*h),x:x+w]
             
             
-            signal_screen.emit( img_dialog_head_thresh )
+            signals.changeScreen.emit( img_dialog_head_thresh )
             #ocr_txt = self.ocr.read(img_dialog_head_thresh,config='-l kor --oem 1 --psm 3')
             #print(ocr_txt)
             #if '사용' not in str(ocr_txt).replace(' ',''):
@@ -403,7 +618,7 @@ class Sweeper():
                     c += 1
                     cv2.rectangle(head_color,(rx,ry),(rx+rw,ry+rh),(0,0,255), 1)
                     cv2.putText(head_color, str(cI), (rx,ry), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255))
-                signal_screen.emit( head_color )
+                signals.changeScreen.emit( head_color )
 
                 cI = 0
                 self.c_src = img_dialog_content
@@ -420,7 +635,7 @@ class Sweeper():
                     cv2.waitKey()
 
                 content_canny = self.c_dst
-                signal_screen.emit( content_canny )
+                signals.changeScreen.emit( content_canny )
 
                 '''
                 a = cv2.GaussianBlur(img_dialog_content,(9,9),0)  #advanced config # blur value
@@ -454,19 +669,19 @@ class Sweeper():
                         cI += 1
 
                         template_canny = templates_canny[ry:ry+rh, rx:rx+rw]
-                        signal_template.emit( template_canny )
+                        signals.changeTemplate.emit( template_canny )
                         print( '----- template matching #'+ str(cI)+' ----')
 
                         match_result = None
                         for matchVal in [0.5,0.4,0.3]:
                             print( ' -> threshold: ' + str(matchVal))
                             for angle in np.linspace(360, 0, 180)[::-1]:
-                                signal_rotate.emit( int( angle ))
+                                signals.changeTmRotate.emit( int( angle ))
                                 #print( 'angle:' + str(angle))
                                 rotated = rotateImage( template_canny, angle)
-                                signal_template.emit( rotated )
+                                signals.changeTmRotate.emit( rotated )
                                 #self.setViewText(str(cI)+"번째 매칭 진행중 (angle:"+ str(angle)+")")
-                                match_result = self.multiScaleMatch( rotated, content_canny,0.2, 0.6, 40, matchVal, signal = signal_ratio )
+                                match_result = self.multiScaleMatch( rotated, content_canny,0.2, 0.6, 40, matchVal, signals )
 
                                 if match_result is not None:
                                     matchScore,tl,br,r = match_result
@@ -476,7 +691,7 @@ class Sweeper():
                                     cv2.putText(detected, str(cI), top_left, cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255))
                                 
                                     print( 'match score:' + str(matchScore) )
-                                    signal_screen.emit( detected )
+                                    signals.changeScreen.emit( detected )
                                     break
                             
                             if match_result is not None:
@@ -485,16 +700,16 @@ class Sweeper():
                                 print( ' ---')
                         
              
-    def multiScaleMatch( self, template, img, min=0.1, max=2.5, counts=20, matchVal=0.7, signal = None ):
+    def multiScaleMatch( self, template, img, min=0.1, max=2.5, counts=20, matchVal=0.7, signals = None ):
         th, tw = template.shape[:2]
         
         i = 0
         for scale in np.linspace(min, max, counts)[::-1]:
             resized = imutils.resize(img, width = int(img.shape[1] * scale))
             r = img.shape[1] / float(resized.shape[1])
-            if signal is not None:
+            if signals is not None:
                 ratioProgress = int ( 100 / (max-min) * ( 1 / r - min ) )
-                signal.emit( ratioProgress )
+                signals.changeTmRatio.emit( ratioProgress )
             if resized.shape[0] < th or resized.shape[1] < tw:
                 break
             match_result = match(template,resized,self.method, matchVal)

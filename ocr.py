@@ -65,7 +65,7 @@ class OcrEngine:
             if key=='config':
                 config=val
                 break
-        print(config)
+        #print(config)
             
         #config lang oem psm
         ocr = pytesseract.image_to_string(im, config=config)

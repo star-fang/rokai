@@ -84,11 +84,8 @@ class MapPalette(QWidget):
                 qp.drawPolygon(rescaled)
             qp.end()
 
-class MiniMapSignals(QObject):
-    closeButtonSignal = pyqtSignal()
-
 class MiniMap(QMainWindow):
-    def __init__(self, amuSignals, parent=None):
+    def __init__(self, signId, amuSignals, threadPool, parent=None):
         QMainWindow.__init__(self, parent)
         self.setAttribute(Qt.WA_TranslucentBackground)
         widget = MapPalette(self)
@@ -100,16 +97,13 @@ class MiniMap(QMainWindow):
         self.createActions()
         self.createToolBar()
 
-        self.amuSign = amuSignals.SIGN_MINIMAP
+        self.amuSign = signId
+        self.amuSignals = amuSignals
         amuSignals.hideSign.connect(self.toggleWindow)
         amuSignals.closeSign.connect(self.requestClose)
-        amuSignals.coordinatesSign.connect(lambda s,x,y:print((s,x,y)))
+        amuSignals.coordinatesSign.connect(lambda t:print(t))
 
-        self.signals = MiniMapSignals()
         self._closeflag = False
-
-    def getSignals(self):
-        return self.signals
 
     def requestClose( self ):
         self._closeflag = True
@@ -231,7 +225,7 @@ class MiniMap(QMainWindow):
     
     def closeEvent(self, event):
         if self._closeflag is False:
-            self.signals.closeButtonSignal.emit()
+            self.amuSignals.closedSign.emit( self.amuSign )
             self.hide()
             event.ignore()
         else:

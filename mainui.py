@@ -1,9 +1,9 @@
 from PyQt5.QtWidgets import QMainWindow, QProgressBar, QTextEdit, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
-from PyQt5.QtCore import QObject, pyqtSignal, QThread
+from PyQt5.QtCore import QObject, QThreadPool, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
 from tracker import Tracker
-from sweeper import Sweeper, Worker
+from sweeper import Sweeper, SweeperWorkFlowSignals, SweeperWorker, SweeperWorkerSignals, SweeperWorkFlow
 from minimap import MiniMap
 from overlay import Overlay
 
@@ -28,35 +28,32 @@ def mat2QPixmap(matObj):
     qpixmap = QPixmap.fromImage(qim)
     return qpixmap
 
-class SweeperSignals(QObject):
-    locationSign = pyqtSignal(int, int, int)
-    closeButtonSignal = pyqtSignal()
 
 class SweeperView(QMainWindow):
-    Button_SCREEN = 1
-    Button_STATE = 2
+    Button_STATE = 1
+    Button_LOCATION = 2
     Button_CRACK = 3
     Button_FIND = 4
-    def __init__(self, amuSignals, sweeper,parent=None):
+    def __init__(self, signId:int, amuSignals: QObject, threadPool: QThreadPool, sweeper: Sweeper, parent=None):
         QMainWindow.__init__(self, parent)
         self.sweeper = sweeper
-        self.signals = SweeperSignals()
         self.initUi()
         
+        self.amuSignals = amuSignals
         amuSignals.hideSign.connect(self.toggleWindow)
         amuSignals.closeSign.connect(self.requestClose)
 
         self._closeflag = False
 
+        self.threadPool = threadPool
+        self.signId = signId
+
     def requestClose( self ):
         self._closeflag = True
         self.close()
     
-    def getSignals(self):
-        return self.signals
-    
     def toggleWindow( self, sign, hide):
-        if sign == AmuSignals.SIGN_SWEEPER:
+        if sign == self.signId:
             if hide:
                 self.hide()
             else:
@@ -68,7 +65,7 @@ class SweeperView(QMainWindow):
     
     def closeEvent(self, event):
         if self._closeflag is False:
-            self.signals.closeButtonSignal.emit()
+            self.amuSignals.closedSign.emit( self.signId )
             self.hide()
             event.ignore()
         else:
@@ -118,27 +115,28 @@ class SweeperView(QMainWindow):
         hbox_test = QHBoxLayout()
         hbox_test.addWidget(QLabel('테스트: '))
 
-        self.screen_btn = QPushButton('화면 감지')
-        self.screen_btn.setFixedHeight(30)
-        self.screen_btn.clicked.connect( lambda: self.onButtonCLicked(self.Button_SCREEN))
-
         self.state_btn = QPushButton('상태 체크')
         self.state_btn.setFixedHeight(30)
         self.state_btn.clicked.connect( lambda: self.onButtonCLicked(self.Button_STATE))
-        self.state_btn.setEnabled(False)
+        #self.state_btn.setEnabled(False)
+
+        self.location_btn = QPushButton('위치 확인')
+        self.location_btn.setFixedHeight(30)
+        self.location_btn.clicked.connect( lambda: self.onButtonCLicked(self.Button_LOCATION))
 
         self.find_btn = QPushButton('루비 찾기')
         self.find_btn.setFixedHeight(30)
         self.find_btn.clicked.connect( lambda: self.onButtonCLicked( self.Button_FIND))
-        self.find_btn.setEnabled(False)
+        #self.find_btn.setEnabled(False)
 
         self.crack_btn = QPushButton('인증 풀기')
         self.crack_btn.setFixedHeight(30)
         self.crack_btn.clicked.connect( lambda: self.onButtonCLicked( self.Button_CRACK))
-        self.crack_btn.setEnabled(False)
+        #self.crack_btn.setEnabled(False)
 
-        hbox_test.addWidget(self.screen_btn)
+        
         hbox_test.addWidget(self.state_btn)
+        hbox_test.addWidget(self.location_btn)
         hbox_test.addWidget(self.find_btn)
         hbox_test.addWidget(self.crack_btn)
 
@@ -146,72 +144,76 @@ class SweeperView(QMainWindow):
 
         self.centralWidget().setLayout(layout)
 
+    def requestWorker( self, *args, work: int, flow: int ): # for runnable worker
+        if( work > -1 ):
+            worker = SweeperWorker( self.sweeper, args, work = work  )
+            self.connectWorkerSignals(worker.getSignals(), work)
+            self.threadPool.start(worker)
+        elif( flow > -1 ):
+            workflow = SweeperWorkFlow( self.sweeper, args, flow = flow) 
+            self.connectWorkFlowSignals(workflow.getSignals(), workflow.getWorkerSignals(), flow)
+            self.threadPool.start(workflow)
+    
+    def connectWorkFlowSignals( self, signals: SweeperWorkFlowSignals, workerSignals: SweeperWorkerSignals, flow:int ):
+        if flow == SweeperWorkFlow.FLOW_IDF_STATE:
+            workerSignals.reportState.connect(lambda report, add:self.setStateText(report, add))
+            workerSignals.changeLocation.connect( lambda t:self.amuSignals.coordinatesSign.emit(t))
+            workerSignals.changeScreen.connect( lambda mat:self.setScreenImage(mat) )
+        
+        signals.finished.connect(lambda: self.onWorkFlowFinished(flow))
+
+    
+    def connectWorkerSignals( self, signals: SweeperWorkerSignals, work: int ):
+        if work == SweeperWorker.WORK_CRACK:
+            signals.changeTemplate.connect( lambda mat:self.setTemplateImage(mat) )
+            signals.changeTmRatio.connect( lambda v:self.setRatioVal(v) )
+            signals.changeTmRotate.connect( lambda v:self.setAngleVal(v) )
+        elif work == SweeperWorker.WORK_WHERE:
+            signals.changeLocation.connect( lambda t:self.amuSignals.coordinatesSign.emit(t))
+
+        signals.changeScreen.connect( lambda mat:self.setScreenImage(mat) )
+        signals.finished.connect(lambda: self.onWorkFinished(work))
+        
+
+
     def onButtonCLicked( self, which ):
         work = -1
-        if which == self.Button_SCREEN:
-            self.screen_btn.setEnabled(False)
-            work = Worker.WORK_DETECT_SCREEN
+        flow = -1
+        if which == self.Button_LOCATION:
+            self.location_btn.setEnabled(False)
+            work = SweeperWorker.WORK_WHERE
         elif which == self.Button_STATE:
             self.state_btn.setEnabled(False)
-            work = Worker.WORK_IDENTIFY_STATE
+            flow = SweeperWorkFlow.FLOW_IDF_STATE
         elif which == self.Button_CRACK:
             self.crack_btn.setEnabled(False)
-            work = Worker.WORK_CRACK
+            work = SweeperWorker.WORK_CRACK
         elif which == self.Button_FIND:
             self.find_btn.setEnabled(False)
-            work = Worker.WORK_RUBY
-        
-        if( work > -1 ):
-          thread = self.makeWorkerThread(work)
-          thread.finished.connect(lambda w=work:self.onWorkFinished(w))
-          thread.start()
+            work = SweeperWorker.WORK_RUBY
+
+        self.requestWorker( work = work, flow = flow )
+    
+    def onWorkFlowFinished( self, flow ):
+        if( flow == SweeperWorkFlow.FLOW_IDF_STATE ):
+            print('identifing flow finished')
+            self.state_btn.setEnabled(True)
 
     def onWorkFinished( self, work ):
-        if( work == Worker.WORK_DETECT_SCREEN):
-            print('screen recognized')
-            self.screen_btn.setEnabled(True)
-        elif( work == Worker.WORK_CRACK ):
+        if( work == SweeperWorker.WORK_WHERE):
+            print('where am I?')
+            self.location_btn.setEnabled(True)
+        elif( work == SweeperWorker.WORK_CRACK ):
             print('crack work finished')
+            self.setAngleVal(0)
             self.setRatioVal(0)
-            self.setRatioVal(0)
-        elif( work == Worker.WORK_IDENTIFY_STATE ):
-            print('state identified')
-            self.state_btn.setEnabled(True)
-        elif( work == Worker.WORK_RUBY ):
+            self.crack_btn.setEnabled(True)
+        elif( work == SweeperWorker.WORK_RUBY ):
             print('find ruby work finished')
-
-    def makeWorkerThread( self, work ):
-
-        self.worker = Worker( self.sweeper, parent = None, work=work )
-        thread = QThread(parent = self)
-        self.worker.moveToThread(thread)
-
-        self.worker.state.connect(lambda s:self.onStateChanged(s))
-        self.worker.stateReport.connect(lambda report:self.setStateText(report))
-        self.worker.changeScreen.connect( lambda mat:self.setScreenImage(mat) )
-        self.worker.changeTemplate.connect( lambda mat:self.setTemplateImage(mat) )
-        self.worker.tm_ratio.connect( lambda v:self.setRatioVal(v) )
-        self.worker.tm_rotate.connect( lambda v:self.setAngleVal(v) )
-        self.worker.changeLocation.connect( lambda s,x,y:self.signals.locationSign.emit(s,x,y))
-
-        self.worker.finished.connect(thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-
-        thread.started.connect(self.worker.run)
-        thread.finished.connect(thread.deleteLater)
-
-        return thread
+            self.find_btn.setEnabled(True)
 
     def onStateChanged(self, state):
-        if( state == Sweeper.DET_STATE_SCREEN_RECOG ):
-            self.state_btn.setEnabled(True)
-            self.find_btn.setEnabled(False)
-            self.crack_btn.setEnabled(False)
-        elif( state == Sweeper.DET_STATE_NO_SCREEN ):
-            self.state_btn.setEnabled(False)
-            self.find_btn.setEnabled(False)
-            self.crack_btn.setEnabled(False)
-        elif( state == Sweeper.STATE_NORMAL ):
+        if( state == Sweeper.NO_DIALOG ):
             self.crack_btn.setEnabled(False)
             self.find_btn.setEnabled(True)
         elif( state == Sweeper.STATE_CHECK_ROBOT2 ):
@@ -240,7 +242,9 @@ class SweeperView(QMainWindow):
         self.templateView.setFixedHeight( 30 )
         self.templateView.setPixmap( pixmap.scaledToHeight( 30 ) )
         
-    def setStateText(self, text):
+    def setStateText(self, text, add=True):
+        if add:
+            text = f'{self.stateText.toPlainText()}\n{text}'
         self.stateText.setText(text)
     
     def setRatioVal(self, val):
@@ -258,24 +262,36 @@ class AmuSignals(QObject):
     SIGN_START = 6
     hideSign = pyqtSignal(int, bool)
     closeSign = pyqtSignal(int)
-    coordinatesSign = pyqtSignal(int,int,int)
+    coordinatesSign = pyqtSignal(tuple)
+    closedSign = pyqtSignal(int)
+    clicked = pyqtSignal(int,int,int)
 
 class RokAMU(QMainWindow):
       
-    def __init__(self, systemResolution, sweeper, parent = None):
+    def __init__(self, systemResolution: list, sweeper: Sweeper, parent = None):
         QMainWindow.__init__(self, parent)
         self.tracker = None
 
         mainWidget = QWidget(self)
         self.setCentralWidget(mainWidget)
 
+        self.threadPool = QThreadPool( parent = self )
+        self.threadPool.setMaxThreadCount(10)
+
         self.sweeper = sweeper
         self.resolutionOption = self.initResolutionOption( systemResolution )
         
+        #self.initNputHandler()
+
         self.signals = AmuSignals()
         self.createSubWindows()
         self.connectSubSignals()
         self.initUI()
+
+    def initNputHandler( self ):
+        self.tracker = Tracker()
+        self.tracker.setCountDown.emit(1)
+        self.tracker.mouseClicked.connect(lambda a,b, c: print(f'a:{a}, b:{b}, c:{c}'))
         
     def initResolutionOption(self, resolution, marginRate = 0.7):
         detectionPartLimit = (2*resolution[0]//3, 2*resolution[1]//3)
@@ -287,6 +303,7 @@ class RokAMU(QMainWindow):
             return (480,360,marginRate)
 
     def closeEvent(self, e):
+        self.threadPool.releaseThread()
         self.signals.closeSign.emit( AmuSignals.SIGN_MINIMAP )
         self.signals.closeSign.emit( AmuSignals.SIGN_OVERLAY )
         self.signals.closeSign.emit( AmuSignals.SIGN_SWEEPER )
@@ -294,37 +311,28 @@ class RokAMU(QMainWindow):
         return super().closeEvent(e)
 
     def createSubWindows( self ):
-        self.sweeperView = SweeperView( self.signals, self.sweeper, parent = self)
-        self.overlay = Overlay( self.signals, parent = self)
-        self.rokMiniMap = MiniMap( self.signals, parent = self )
+        self.sweeperView = SweeperView( AmuSignals.SIGN_SWEEPER, self.signals, self.threadPool, self.sweeper, parent = self)
+        self.overlay = Overlay( self.tracker, AmuSignals.SIGN_OVERLAY, self.signals, self.threadPool, self.sweeper, parent = self)
+        self.rokMiniMap = MiniMap( AmuSignals.SIGN_MINIMAP, self.signals, self.threadPool, parent = self )
 
     def connectSubSignals( self):
-        overlaySignals = self.overlay.getSignals()
-        sweeperSignals = self.sweeperView.getSignals()
-        minimapSignals = self.rokMiniMap.getSignals()
-
-        overlaySignals.resizeSign.connect( lambda a,b,c,d:self.sweeper.setDetectionPart(a,b,c,d) )
-        sweeperSignals.locationSign.connect( lambda a,b,c:self.signals.coordinatesSign.emit(a,b,c))
-
-        overlaySignals.closeButtonSignal.connect( lambda:self.onSubWindowClosed(AmuSignals.SIGN_OVERLAY))
-        sweeperSignals.closeButtonSignal.connect( lambda:self.onSubWindowClosed(AmuSignals.SIGN_SWEEPER))
-        minimapSignals.closeButtonSignal.connect( lambda:self.onSubWindowClosed(AmuSignals.SIGN_MINIMAP))
+        self.signals.closedSign.connect(lambda s:self.onSubWindowClosed(s))
 
     def initUI(self):
 
         initWidth = self.resolutionOption[0]/self.resolutionOption[2]
         initHeight = self.resolutionOption[1]/self.resolutionOption[2]
 
-        self.sweeperView.setGeometry( initWidth, 0,380, initHeight)
+        self.sweeperView.setGeometry( initWidth+100, 0, 400, initHeight)
         self.sweeperView.show()
 
-        self.overlay.setGeometry(0, 0, initWidth, initHeight )
+        self.overlay.setGeometry( 50, 50, initWidth - 50 , initHeight - 50 )
         self.overlay.show()
     
-        self.sweeper.setDetectionPart( 0, 0, initWidth, initHeight) 
+        #self.sweeper.setDetectionPart( 0, 0, initWidth, initHeight) 
         
 
-        self.rokMiniMap.setGeometry(initWidth, initHeight, 300, 300 )
+        self.rokMiniMap.setGeometry(initWidth+100, initHeight + 50, 300, 300 )
         self.rokMiniMap.show()
 
         hbox = QHBoxLayout(self.centralWidget())
@@ -368,7 +376,7 @@ class RokAMU(QMainWindow):
         self.start_btn.setStyleSheet('background-color: lightgrey')
         hbox.addWidget(self.start_btn)
 
-        self.move(0, initHeight)
+        self.move(0, initHeight + 50)
 
     
 
