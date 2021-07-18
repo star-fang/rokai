@@ -1,5 +1,6 @@
+from threading import Lock
 from PyQt5.QtWidgets import QMainWindow, QWidget
-from PyQt5.QtCore import QPointF, QThreadPool, pyqtSignal, QObject, Qt
+from PyQt5.QtCore import QPointF, QRectF, QThreadPool, QWaitCondition, QObject, Qt, pyqtSlot
 from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF
 from sweeper import Sweeper, SweeperWorker
 
@@ -35,7 +36,7 @@ class TranslucentWidget(QWidget):
 class Overlay(QMainWindow):
     BORDER_THICKNESS = 12
 
-    def __init__(self, tracker, signId, amuSignals, threadPool: QThreadPool, sweeper: Sweeper, parent=None):
+    def __init__(self, tracker, signId, amuSignals, threadPool: QThreadPool, sweeper: Sweeper, mutex: Lock, parent=None):
         QMainWindow.__init__(self, parent, Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
 
         widget = QWidget(self)
@@ -47,30 +48,61 @@ class Overlay(QMainWindow):
         self.movingBoundaryColor = QColor(255, 0, 0, 255)
         self.penColor = QColor(200, 200, 200, 10)
 
-        self._popframe = None
-        self._popflag = False
+        self._popframe:TranslucentWidget = None #shown while resizing
+        self._popflag:bool = False
 
-        self.pvPoint = None
-        self._setGeoMode = 0 
+        self.pvPoint:list = None # pivot points form resizng << type is list for [mutable] parameter passing
+        self._setGeoMode:int = 0
 
-        self.amuSign = signId
-        self.amuSignals = amuSignals
+        self.amuSign:int = signId
+        self.amuSignals:QObject = amuSignals
         amuSignals.hideSign.connect(self.toggleWindow)
         amuSignals.closeSign.connect(self.requestClose)
 
-        self._closeflag = False
+        self._closeflag:bool = False
 
         self.threadPool = threadPool
-        self.sweeper = sweeper
-        self.bbox = None
-        self._bboxFlag = False
+        self.sweeper:Sweeper = sweeper
+        self.mutex:Lock = mutex
+        self.bbox:tuple = None
+        self._bboxFlag:bool = False
+
+        self.rects:list = list()
+        self._rectflag = False
 
         self.tracker = tracker
+
+        self.sweeper.changeBbox.connect( self.setBbox )
+        self.sweeper.addRect.connect( self.addRect )
+        self.sweeper.clearRects.connect( self.clearRects )
+
+        self.conditionForCapture:QWaitCondition = None
+        self._captureflag = False
+
+    def addRect(self, box:tuple, r:int, g:int, b:int, alpha:int, thickness:int):
+
+        print(f'addRect: {box}')
+        x1, y1, x2, y2 = box
+        w = x2 - x1
+        h = y2 - y1
+        rect = QRectF(float(x1+ self.bbox[0]), float(y1+ self.bbox[1]), float(w), float(h))
+
+        self.rects += ( (rect, QPen(QColor(r,g,b,alpha), thickness ) ), )
+        self._rectflag = True
+        self.repaint()
+    
+    @pyqtSlot(QWaitCondition)
+    def clearRects( self, waitCondition:QWaitCondition ):
+        self._rectflag = False
+        self.rects.clear()
+        self._captureflag = True
+        self.conditionForCapture = waitCondition
+        self.repaint()
+        
 
     def requestDetectScreenWork( self ):
         
         worker = SweeperWorker(self.sweeper, self.getInnerRect(), work=SweeperWorker.WORK_DETECT_SCREEN )
-        worker.getSignals().changeBbox.connect(self.setBbox)
         self.threadPool.start(worker)
 
     def getInnerRect(self):
@@ -154,8 +186,10 @@ class Overlay(QMainWindow):
 
 
         self._onpopup()
-        self.bbox = None
         self._bboxFlag = False
+        self.bbox = None
+        self._rectflag = False
+        self.rects.clear()
         return super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
@@ -173,7 +207,6 @@ class Overlay(QMainWindow):
         433, 137 -> 300, 230
         -133, +93
         '''
-
 
     def mouseMoveEvent(self, event):
 
@@ -323,10 +356,21 @@ class Overlay(QMainWindow):
                 inPath.addPolygon(polygon)
                 qp.fillPath(inPath, qp.brush())
 
+        if self._rectflag and self.rects is not None:
+            for rect, pen in self.rects:
+                rectPath = QPainterPath()
+                rectPath.addRect( rect )
+                qp.strokePath( rectPath, pen )
         qp.setBrush(self.movingBoundaryColor)
         qp.fillRect(lW-self.BORDER_THICKNESS, lH-4*self.BORDER_THICKNESS, self.BORDER_THICKNESS, 2*self.BORDER_THICKNESS, qp.brush())
 
         qp.end()
+
+        if self._captureflag and self.conditionForCapture is not None:
+            self.conditionForCapture.wakeAll()
+            print( 'overlay cleared: ready for capture ')
+            self._captureflag = False
+            self.conditionForCapture = None
 
     def resizeEvent(self, event):
         geoRect = self.geometry().getRect()
@@ -341,7 +385,6 @@ class Overlay(QMainWindow):
         self._popframe = TranslucentWidget(self.centralWidget())
         self._popframe.move(0, 0)
         self._popframe.resize(self.width(), self.height())
-        self._popframe.SIGNALS.CLOSE.connect(self._closepopup)
         self._popflag = True
         self._popframe.show()
 

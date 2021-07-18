@@ -3,9 +3,11 @@ from PyQt5.QtCore import QObject, QThreadPool, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
 from tracker import Tracker
-from sweeper import Sweeper, SweeperWorkFlowSignals, SweeperWorker, SweeperWorkerSignals, SweeperWorkFlow
+from sweeper import Sweeper, SweeperWorker, SweeperWorkFlow
+from ocr import OcrEngine
 from minimap import MiniMap
 from overlay import Overlay
+from threading import Lock
 
 def mat2QPixmap(matObj):
     
@@ -34,7 +36,7 @@ class SweeperView(QMainWindow):
     Button_LOCATION = 2
     Button_CRACK = 3
     Button_FIND = 4
-    def __init__(self, signId:int, amuSignals: QObject, threadPool: QThreadPool, sweeper: Sweeper, parent=None):
+    def __init__(self, signId:int, amuSignals: QObject, threadPool: QThreadPool, sweeper: Sweeper, mutex:Lock, parent=None):
         QMainWindow.__init__(self, parent)
         self.sweeper = sweeper
         self.initUi()
@@ -47,6 +49,19 @@ class SweeperView(QMainWindow):
 
         self.threadPool = threadPool
         self.signId = signId
+
+        self.mutex = mutex
+
+        self.connectSweeperSignals()
+
+    def connectSweeperSignals( self ):
+        
+        self.sweeper.reportState.connect(lambda report, add:self.setStateText(report, add))
+        self.sweeper.changeScreen.connect( lambda mat:self.setScreenImage(mat) )
+        self.sweeper.changeTemplate.connect( lambda mat:self.setTemplateImage(mat) )
+        self.sweeper.changeTmRatio.connect( lambda v:self.setRatioVal(v) )
+        self.sweeper.changeTmRotate.connect( lambda v:self.setAngleVal(v) )
+        self.sweeper.changeState.connect( lambda s:self.onStateChanged(s))
 
     def requestClose( self ):
         self._closeflag = True
@@ -147,34 +162,12 @@ class SweeperView(QMainWindow):
     def requestWorker( self, *args, work: int, flow: int ): # for runnable worker
         if( work > -1 ):
             worker = SweeperWorker( self.sweeper, args, work = work  )
-            self.connectWorkerSignals(worker.getSignals(), work)
+            worker.signals.finished.connect(lambda: self.onWorkFinished(work))
             self.threadPool.start(worker)
         elif( flow > -1 ):
             workflow = SweeperWorkFlow( self.sweeper, args, flow = flow) 
-            self.connectWorkFlowSignals(workflow.getSignals(), workflow.getWorkerSignals(), flow)
+            workflow.signals.finished.connect(lambda: self.onWorkFlowFinished(flow))
             self.threadPool.start(workflow)
-    
-    def connectWorkFlowSignals( self, signals: SweeperWorkFlowSignals, workerSignals: SweeperWorkerSignals, flow:int ):
-        if flow == SweeperWorkFlow.FLOW_IDF_STATE:
-            workerSignals.reportState.connect(lambda report, add:self.setStateText(report, add))
-            workerSignals.changeLocation.connect( lambda t:self.amuSignals.coordinatesSign.emit(t))
-            workerSignals.changeScreen.connect( lambda mat:self.setScreenImage(mat) )
-        
-        signals.finished.connect(lambda: self.onWorkFlowFinished(flow))
-
-    
-    def connectWorkerSignals( self, signals: SweeperWorkerSignals, work: int ):
-        if work == SweeperWorker.WORK_CRACK:
-            signals.changeTemplate.connect( lambda mat:self.setTemplateImage(mat) )
-            signals.changeTmRatio.connect( lambda v:self.setRatioVal(v) )
-            signals.changeTmRotate.connect( lambda v:self.setAngleVal(v) )
-        elif work == SweeperWorker.WORK_WHERE:
-            signals.changeLocation.connect( lambda t:self.amuSignals.coordinatesSign.emit(t))
-
-        signals.changeScreen.connect( lambda mat:self.setScreenImage(mat) )
-        signals.finished.connect(lambda: self.onWorkFinished(work))
-        
-
 
     def onButtonCLicked( self, which ):
         work = -1
@@ -216,7 +209,7 @@ class SweeperView(QMainWindow):
         if( state == Sweeper.NO_DIALOG ):
             self.crack_btn.setEnabled(False)
             self.find_btn.setEnabled(True)
-        elif( state == Sweeper.STATE_CHECK_ROBOT2 ):
+        elif( state == Sweeper.DIALOG_ROBOT2 ):
             self.find_btn.setEnabled(False)
             self.crack_btn.setEnabled(True)
         else:
@@ -262,13 +255,12 @@ class AmuSignals(QObject):
     SIGN_START = 6
     hideSign = pyqtSignal(int, bool)
     closeSign = pyqtSignal(int)
-    coordinatesSign = pyqtSignal(tuple)
     closedSign = pyqtSignal(int)
     clicked = pyqtSignal(int,int,int)
 
 class RokAMU(QMainWindow):
       
-    def __init__(self, systemResolution: list, sweeper: Sweeper, parent = None):
+    def __init__(self, systemResolution: list, parent = None):
         QMainWindow.__init__(self, parent)
         self.tracker = None
 
@@ -278,10 +270,13 @@ class RokAMU(QMainWindow):
         self.threadPool = QThreadPool( parent = self )
         self.threadPool.setMaxThreadCount(10)
 
-        self.sweeper = sweeper
+        ocr = OcrEngine('-l eng+kor --oem 1 --psm3') #default config
+        self.sweeper = Sweeper( ocr ) # default TM_option
         self.resolutionOption = self.initResolutionOption( systemResolution )
         
         #self.initNputHandler()
+
+        self.mutex = Lock()
 
         self.signals = AmuSignals()
         self.createSubWindows()
@@ -303,6 +298,7 @@ class RokAMU(QMainWindow):
             return (480,360,marginRate)
 
     def closeEvent(self, e):
+        self.sweeper.deleteLater()
         self.threadPool.releaseThread()
         self.signals.closeSign.emit( AmuSignals.SIGN_MINIMAP )
         self.signals.closeSign.emit( AmuSignals.SIGN_OVERLAY )
@@ -311,9 +307,9 @@ class RokAMU(QMainWindow):
         return super().closeEvent(e)
 
     def createSubWindows( self ):
-        self.sweeperView = SweeperView( AmuSignals.SIGN_SWEEPER, self.signals, self.threadPool, self.sweeper, parent = self)
-        self.overlay = Overlay( self.tracker, AmuSignals.SIGN_OVERLAY, self.signals, self.threadPool, self.sweeper, parent = self)
-        self.rokMiniMap = MiniMap( AmuSignals.SIGN_MINIMAP, self.signals, self.threadPool, parent = self )
+        self.sweeperView = SweeperView( AmuSignals.SIGN_SWEEPER, self.signals, self.threadPool, self.sweeper, self.mutex, parent = self)
+        self.rokMiniMap = MiniMap( AmuSignals.SIGN_MINIMAP, self.signals, self.threadPool, self.sweeper, self.mutex, parent = self )
+        self.overlay = Overlay( self.tracker, AmuSignals.SIGN_OVERLAY, self.signals, self.threadPool, self.sweeper, self.mutex , parent = self)
 
     def connectSubSignals( self):
         self.signals.closedSign.connect(lambda s:self.onSubWindowClosed(s))
@@ -328,6 +324,7 @@ class RokAMU(QMainWindow):
 
         self.overlay.setGeometry( 50, 50, initWidth - 50 , initHeight - 50 )
         self.overlay.show()
+        self.overlay.requestDetectScreenWork()
     
         #self.sweeper.setDetectionPart( 0, 0, initWidth, initHeight) 
         

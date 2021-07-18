@@ -6,7 +6,7 @@ class ShapeDetector:
     SHAPE_RECTANGLE = 2
     SHAPE_SQUARE = 3
     SHAPE_PENTAGON = 5
-    SHPAE_CIRCLE = 9
+    SHAPE_CIRCLE = 9
     def __init__(self) -> None:
         pass
 
@@ -25,5 +25,5 @@ class ShapeDetector:
         elif len_approx == 5:
             shape = self.SHAPE_PENTAGON
         else:
-            shape = self.SHPAE_CIRCLE
+            shape = self.SHAPE_CIRCLE
         return shape
