@@ -6,6 +6,73 @@ from pathlib import Path
 from sweeper import Sweeper
 from threading import Lock
 
+def rayCastingCheck( land:QPolygonF, lat:float, lng:float):
+    count  = 0
+    
+    bLen = land.count()
+    for i in range(0, bLen):
+        vertex1:QPointF = land.at(i)
+        vertex2:QPointF = land.at( (i+1) % bLen )
+        if vertex1.x() == vertex2.x and vertex2.x() == lng:
+            if max( vertex1.y(), vertex2.y() ) > lat and min( vertex1.y(), vertex2.y() ) < lat: return True
+        elif vertex1.y() == vertex2.y and vertex2.y == lat:
+            if max( vertex1.x(), vertex2.x() ) > lng and min( vertex1.x(), vertex2.x() ) > lng: return True
+        if west( vertex1, vertex2, lng, lat):
+            count += 1
+    return bool( count % 2 == 1 )
+'''
+function contains(boundary, lat, lng) {
+  //https://rosettacode.org/wiki/Ray-casting_algorithm
+  var count = 0;
+  for (var b = 0; b < bounds.length; b++) {
+      var vertex1 = bounds[b];
+      var vertex2 = bounds[(b + 1) % bounds.length];
+      if( vertex1.x == vertex2.x && vertex2.x == lng) {
+        if( Math.max( vertex1.y, vertex2.y) > lat && Math.min( vertex1.y, vertex2.y ) < lat) return true; 
+      } else if( vertex1.y == vertex2.y && vertex2.y == lat) {
+        if( Math.max( vertex1.x, vertex2.x) > lng && Math.min( vertex1.x, vertex2.x ) < lng) return true; 
+      }
+      if (west(vertex1, vertex2, lng, lat))
+          ++count;
+  }
+  return (count % 2) == 1;
+'''
+
+def west( v1:QPointF, v2:QPointF, x:float, y:float ):
+    if v1.y() <= v2.y():
+        if y <= v1.y() or y > v2.y() or x >= v1.x() and x >= v2.x():
+            return False
+        elif x < v1.x() and x < v2.x():
+            return True
+        else:
+            return bool( ( y - v1.y() ) / ( x - v1.x() ) > ( v2.y() - v1.y() ) / ( v2.x() - v1.x() ) )
+    else:
+        return west( v2, v1, x, y)
+
+
+'''
+  /**
+   * @return {boolean} true if (x,y) is west of the line segment connecting A and B
+   */
+  function west(A, B, x, y) {
+      if (A.y <= B.y) {
+          if (y <= A.y || y > B.y ||  x >= A.x && x >= B.x) {
+              return false;
+          } else if (x < A.x && x < B.x) {
+              return true;
+          } else {
+              return (y - A.y) / (x - A.x) > (B.y - A.y) / (B.x - A.x);
+          }
+      } else {
+          return west(B, A, x, y);
+      }
+  }
+}
+'''
+
+
+
+
 class PaletteSignals(QObject):
     clear = pyqtSignal()
     setLand = pyqtSignal( list, list )
@@ -74,7 +141,8 @@ class MapPalette(QWidget):
             qp.setRenderHint(QPainter.Antialiasing, True)
             qp.setPen(QPen(self.penColor,5))
             for i in range( 0, len(self.lands) ):
-                land, color = self.lands[i]
+                land = self.lands[i]['boundary']
+                color = self.lands[i]['color']
                 qp.setBrush(color)
                 trans = QTransform()
                 rescaled = trans.scale(rescaleRatio, rescaleRatio).map(land)
@@ -118,9 +186,18 @@ class MiniMap(QMainWindow):
 
     def drawHudLocRect( self, t ):
         server, x, y = t
-        if server == self.server:
+        if hasattr(self, 'lands') and self.lands is not None and server == self.server:
+            for land in self.lands:
+                try:
+                    if rayCastingCheck( land['boundary'], float(y), float(x)):
+                        name_kr = str(land['name']['kor'])
+                        print( f'aa{name_kr}' )
+                        break
+                except KeyError:
+                    pass
+            
             self.palette.signals.drawLoc.emit( (x-15,y-10,30,20) )
-
+            
     def requestClose( self ):
         self._closeflag = True
         self.close()
@@ -162,59 +239,75 @@ class MiniMap(QMainWindow):
         source_path = Path(__file__).resolve()
         source_dir = source_path.parent
 
-        
+        name_dir = str(source_dir) + '/assets/name.json'
+
+        name_dict = dict()
+        with open(name_dir,'r', encoding='utf-8') as name_json:
+            name_python = json.load(name_json)
+            if isinstance( name_python, list):
+                for elmt in name_python:
+                    if isinstance( elmt, dict):
+                        try:
+                            id = elmt['id']
+                            name_eng = elmt['eng'] if 'eng' in elmt else ''
+                            name_kor = elmt['kor'] if 'kor' in elmt else ''
+                            name_dict[id] = {'eng':name_eng, 'kor':name_kor}
+                        except KeyError:
+                            pass
         file_dir = str(source_dir) + '/assets/vertex1947.json'
         print( f'{file_dir} loaded' )
         with open(file_dir,'r', encoding='utf-8') as src_json:
-            src_python = json.load(src_json)
-        
-        if isinstance( src_python, list ):
-            for i in range( 0, len(src_python) ):
-                elmt = src_python[i]
-                if isinstance(elmt, dict):
-                    try:
-                        name = str( elmt['name'] )
-                        data = elmt['data']
+            src_python = json.load(src_json)  
+            if isinstance( src_python, list ):
+              for i in range( 0, len(src_python) ):
+                    elmt = src_python[i]
+                    if isinstance(elmt, dict):
+                        try:
+                            name = str( elmt['name'] )
+                            data = elmt['data']
 
-                        if 'server' in elmt:
-                            server = int( elmt['server'] )
-                        else:
-                            server = 1947
-
-                        if name == 'land' and isinstance(data, list):
-                            print( 'server: ' + str(server))
-                            self.server = server
-                            if 'size' in elmt:
-                                mapSize = elmt['size']
+                            if 'server' in elmt:
+                                server = int( elmt['server'] )
                             else:
-                                print( 'size no exist')
-                                mapSize = [1200, 1200]
+                                server = 1947
 
-                            lands = [] # list of 'j' polygons ( contains 'k' points) 
-                            for j in range(0, len(data)):
-                                land = data[j]
+                            if name == 'land' and isinstance(data, list):
+                                print( 'server: ' + str(server))
+                                self.server = server
+                                if 'size' in elmt:
+                                    mapSize = elmt['size']
+                                else:
+                                    print( 'size no exist')
+                                    mapSize = [1200, 1200]
 
-                                try:
-                                    color = str(land['color'])
-                                except KeyError:
-                                    color = '#FFFFFF'
-                                if isinstance(land, dict) and 'boundary' in land:
-                                    boundaries = land['boundary']
-                                    if isinstance(boundaries, list):
-                                        points = tuple() # tuple of QPointF(s)
-                                        for k in range(0, len(boundaries)):
-                                            point = boundaries[k]
-                                            if isinstance( point, dict): # {'x':100, 'y':200}
-                                                p = list(point.values()) # [100, 200]
-                                                if len(p) == 2:
-                                                    points += (QPointF( p[0], mapSize[1] - p[1] ),)
-                                        lands.append( (QPolygonF(points), QColor(color)) )
-                            self.lands = lands
-                            self.palette.signals.setLand.emit(lands, mapSize)
+                                lands = [] # list of 'j' polygons ( contains 'k' points) 
+                                for j in range(0, len(data)):
+                                    land = data[j]
+
+                                    if isinstance(land, dict) and 'boundary' in land:
+                                        color = str(land['color']) if 'color' in land else '#FFFFFF'
+                                        landName = dict()
+                                        if 'nameId' in land:
+                                            nameId = int(land['nameId'])
+                                            if nameId in name_dict:
+                                                landName = name_dict[ nameId ]
+                                        boundaries = land['boundary']
+                                        if isinstance(boundaries, list):
+                                            points = tuple() # tuple of QPointF(s)
+                                            for k in range(0, len(boundaries)):
+                                                point = boundaries[k]
+                                                if isinstance( point, dict): # {'x':100, 'y':200}
+                                                    p = list(point.values()) # [100, 200]
+                                                    if len(p) == 2:
+                                                        points += (QPointF( p[0], mapSize[1] - p[1] ),)
+                                            lands.append( {'boundary':QPolygonF(points), 
+                                                            'color':QColor(color), 
+                                                            'name': landName} )
+                                self.lands = lands
+                                self.palette.signals.setLand.emit(lands, mapSize)
                         
-                    except KeyError:
-                        name = ''
-                        data = None
+                        except KeyError:
+                            pass
                 
 
     def hideEvent(self, event):

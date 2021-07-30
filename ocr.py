@@ -1,5 +1,4 @@
 import pytesseract
-import html5lib
 import numpy as np
 import cv2
 from bs4 import BeautifulSoup
@@ -43,13 +42,12 @@ class OcrEngine:
             cv2.waitKey()
         return noiseRemoved, img_th
 
-    def removeBackground(self, img_gray, kernel1 = 3, kernel2 = 51, thresh= True): # ksize must must be odd
+    def removeBackground(self, img_gray, kernel1 = 3, kernel2 = 7): # ksize must must be odd
         mb1 = cv2.medianBlur(img_gray, kernel1)
         mb2 = cv2.medianBlur(img_gray,kernel2)
         d = np.ma.divide(mb1,mb2).data
-        n = np.uint8(255*d/d.max())
         
-        return cv2.threshold(n, 100, 255, cv2.THRESH_OTSU) if thresh else n
+        return np.uint8(255*d/d.max())
 
     def readHtml(self,im):
         config = '--oem 1 --psm 3'

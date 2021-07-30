@@ -10,6 +10,8 @@ import pyautogui
 from pathlib import Path
 from shape import ShapeDetector
 from concurrent.futures import ThreadPoolExecutor
+from mnist import MnistCnnModel
+from ocr import OcrEngine
 
 '''
 state flow
@@ -29,6 +31,7 @@ state flow
  좌표 
 
 '''
+
 
 TH_BUTTON0 = 160
 TH_BUTTON1= 180
@@ -228,14 +231,13 @@ class Sweeper( QObject ):
     DIALOG_RUBY0 = 4
     DIALOG_RUBY1 = 5
     DIALOG_RUBY2 = 6
-
-
+    
     changeLocation = pyqtSignal(tuple) # to minimap
 
     changeState = pyqtSignal(int)
     reportState = pyqtSignal(str, bool)
-    changeScreen = pyqtSignal(object) # image matrix, rect
-    changeTemplate = pyqtSignal(object) # image matrix
+    changeScreen = pyqtSignal( np.ndarray ) # image matrix, rect
+    changeTemplate = pyqtSignal( np.ndarray ) # image matrix
     changeTmRatio = pyqtSignal(int)
     changeTmRotate = pyqtSignal(int) 
 
@@ -243,21 +245,39 @@ class Sweeper( QObject ):
     addRect = pyqtSignal(tuple, int, int ,int ,int, int) # draw ovetlay rects, rgba, thickness
     clearRects = pyqtSignal(QWaitCondition)
 
+    plotPlt = pyqtSignal( np.ndarray )
+
     def __init__(self, ocr, methodName='cv2.TM_CCOEFF_NORMED', parent = None):
         QObject.__init__(self, parent)
         
         if methodName is not None:
             self.setMethodName(methodName)
-        self.ocr = ocr
+
         self.bbox:tuple = None
-        self.img_src:np.ndarray = np.ndarray((1,1,1))
+        self.img_src:np.ndarray = np.zeros((1,1,1))
         #print( self.img_src.shape )
         self.loadTmImages()
-        self.shapeDetector = ShapeDetector()
+        
 
         self.crack_tm_box_list = list()
+        
         self.initStateFlags()
         self.initWorkFlowData()
+
+        self.initImageRecognizingModules()
+
+
+    def initImageRecognizingModules(self):
+
+        self.ocr = OcrEngine('-l eng+kor --oem 1 --psm3') #default config
+        self.shapeDetector = ShapeDetector()
+        self.mnist = MnistCnnModel()
+        self.mnist.loadingSignal.connect(lambda name:print('loading %s...' % name))
+        self.mnist.loadCompleteSignal.connect(lambda name, t:print('%s loaded in %.3fs' % (name, t)))
+
+        #from multiprocessing.pool import ThreadPool as tp
+        #pool = tp(processes = 1)
+        #pool.apply_async( self.mnist.loadKerasModule() )
 
     def initStateFlags(self):
         self.state_when:int = self.WHEN_NONE
@@ -271,7 +291,6 @@ class Sweeper( QObject ):
 
         self.field_home_button_box:tuple = None
         self.ruby_button_box:tuple = None
-
 
     def loadTmImages(self):
         source_path = Path(__file__).resolve()
@@ -378,13 +397,11 @@ class Sweeper( QObject ):
                     cnt_gray = 255-img_gray[ty1:ty2,tx1:tx2]
                     resized = imutils.resize(cnt_gray, width = 300)
                     troops_txt = self.ocr.read(resized,config='--oem 1 --psm 13')
-                    cv2.imshow('sffssf',resized)
-                    cv2.waitKey()
+               
                     print( f't count: {troops_txt}')
                 except Exception as e:
                     print( f'exception while count troops:{e}')
             
-
     def detectCoordinates(self, img_src:np.ndarray=None, img_gray:np.ndarray = None):
         if img_src is None:
             img_src = self.img_src.copy()
@@ -399,27 +416,172 @@ class Sweeper( QObject ):
        
         if rectExist:
             try:
-                x,y,x2,y2 = bbox
-                w = x2-x
-                h = y2-y
-                coords_part = img_topLeft[y+int(0.1*h):y+int(0.8*h),x+w:x+int(2.1*w)]
-
-                #coords_yuv = cv2.cvtColor(coords_part, cv2.COLOR_BGR2YUV)
-                #oords_yuv[:, :, 0] = cv2.equalizeHist(coords_yuv[:, :, 0])
-                #coords_rgb = cv2.cvtColor(coords_yuv, cv2.COLOR_YUV2RGB)
-    
-                coords_txt = self.ocr.read(coords_part,config='-l eng --oem 1 --psm 13')
-                coords_txt = coords_txt.replace('\n',' ')
+                bx,by,x2,y2 = bbox
+                w = x2-bx
+                h = y2-by
+                cbox = (bx + w , by+int(0.1*h), bx+int(2.1*w), by+int(0.9*h) )
+                cW = cbox[2] - cbox[1]
+                cH = cbox[3] - cbox[0]
+                #coords_part = img_topLeft[cbox[1]:cbox[3], cbox[0]:cbox[2]]
+                coords_part_gray = img_topLeft_gray[cbox[1]:cbox[3], cbox[0]:cbox[2]]
+                #self.addRect.emit( cbox,255,0,255,255, 2  )
                 
-                txt = re.sub('\D',' ', coords_txt)
-                
-                split = re.split('\s+', txt)
-                split = [e for e in split if e != '']
-                if( len(split) != 3 ):
-                    coords_part_gray = img_topLeft_gray[y+int(0.1*h):y+int(0.8*h),x+w:x+int(2.1*w)]
-                    coords_gray = 255-coords_part_gray
-                    ret,coord_removed_bg = self.ocr.removeBackground(coords_gray, kernel1=1, kernel2=5)
+                coords_thresh = cv2.threshold(coords_part_gray, 127, 255, cv2.THRESH_BINARY)[1]
+                coords_blur = cv2.GaussianBlur(coords_thresh,(11,11),0)  #advanced config # blur value
+                coords_canny = cv2.Canny(coords_blur, 50, 100)  #advanced config # canny value
+                coords_contours = findContourList(coords_canny, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
+                canny_to_rgb = cv2.cvtColor(coords_canny, cv2.COLOR_GRAY2RGB)
+                print(f'c len: {len(coords_contours)}')
+
+
+                for contour in coords_contours:
+                    conW,conH = cv2.boundingRect(contour)[2:]
+                    if conH * 2 > cH and conW * 5 > cW:
+                        cv2.drawContours(canny_to_rgb, [contour],0,(255,0,0),1)
+
+                if True:
+                    
+                    
+                    def onChange_ksize( k , i ):
+                        if i == 0:
+                            onChange_ksize.bkf = k
+                        elif i == 1:
+                            onChange_ksize.rkf1 = k
+                        else:
+                            onChange_ksize.rkf2 = k
+
+                        bk = 2 * onChange_ksize.bkf + 1
+                        rk1 = 2 * onChange_ksize.rkf1 + 1
+                        rk2 = 2 * onChange_ksize.rkf2 + 1 
+
+                        cpH = coords_part_gray.shape[1]
+                        resizeRatio = cpH / float( 64 )
+                        resized = imutils.resize( 255 - coords_part_gray, height= 64 )
+                        blur = cv2.GaussianBlur( resized, (bk,bk), 0 )
+                        coord_removed_bg = self.ocr.removeBackground(blur, kernel1=rk1, kernel2=rk2)
+                        coord_thresh_otsu = cv2.threshold(coord_removed_bg, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)[1]
+                        coord_thresh_gauss = cv2.adaptiveThreshold(coord_removed_bg,255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+                        coord_thresh_mean = cv2.adaptiveThreshold(coord_removed_bg,255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
+                        coord_result = cv2.bitwise_or(coord_thresh_otsu, coord_thresh_mean )
+                        cv2.imshow('coord', np.vstack([ blur, coord_removed_bg, coord_thresh_otsu, coord_thresh_mean, coord_result]))
+                    onChange_ksize.bkf = 0
+                    onChange_ksize.rkf1 = 0
+                    onChange_ksize.rkf2 = 0
+                    onChange_ksize( 0, 0 )
+                    cv2.createTrackbar('bk', 'coord', 0, 20, lambda k: onChange_ksize( k, 0 ))
+                    cv2.createTrackbar('rk1', 'coord', 0, 10, lambda k: onChange_ksize( k, 1))
+                    cv2.createTrackbar('rk2', 'coord', 0, 20, lambda k: onChange_ksize( k, 2))
+                    cv2.waitKey(0)
+
+
+                    return
+                    
+                    crbW = coord_removed_bg.shape[1]
+
+                    
+                    
+                    row_pixel_sum = np.sum(coord_removed_bg, axis=1)
+                    proj = row_pixel_sum / 255
+                    vHist = np.zeros_like( coord_removed_bg )
+
+                    projStartPos = 0
+                    maxPos = [0, 0]
+                    row_score_sum = 0
+                    max_score_sum = 0
+                    row_start = False
+                    for i, val in enumerate( proj ):
+                        invVal = int(crbW - val)
+                        score = invVal / float(crbW)
+                        if score > 0.01:
+                            if not row_start:
+                                row_start = True
+                                projStartPos = i
+                                row_score_sum = score
+                            else:
+                                row_score_sum += score
+                        else:
+                            if row_start:
+                                row_start = False
+                                if row_score_sum > max_score_sum:
+                                    max_score_sum = row_score_sum
+                                    maxPos[0] = projStartPos
+                                    maxPos[1] = i
+                        cv2.line( vHist, (0, i), (invVal, i), 255, 1)
+
+                    print( f'maxPos:{maxPos}')
+                    if maxPos[1] - maxPos[0] == 0:
+                        return
+                    self.addRect.emit( (cbox[0], cbox[1] + maxPos[0], cbox[2], cbox[1] + maxPos[1]),0,255,0,255, 1  )
+                    
+                    histDist = np.hstack([coord_removed_bg, vHist])
+                    #cv2.imshow('histDst', histDist)
+                    #cv2.waitKey(0)
+                    coord_removed_bg = coord_removed_bg[ maxPos[0]: maxPos[1], 0:]
+                    crbH = coord_removed_bg.shape[0]
+                    #cv2.imshow('coord_removed_bg', coord_removed_bg)
+                    #cv2.waitKey(0)
+                    return
+
+                    column_pixel_sum = np.sum(coord_removed_bg, axis = 0 )
+                    proj = column_pixel_sum / 255
+
+                    hHist = np.zeros_like( coord_removed_bg )
+                    word_start = False
+                    word_start_pos = 0
+                    score_sum = 0
+                    for i, val in enumerate( proj ):
+                        invVal = crbH - int(val)
+                        #cv2.line( hist, (i, 0), (i, invVal), 255, 1)
+                        score = invVal / float(crbH) # 0 ~ 1
+                        if score < 0.01:
+                            #cv2.line( hist, (i, 0), (i, crbH), 0, 1) # not word
+                            if word_start:
+                                #print( f'word end at {i}')
+                                word_start = False
+                                if( i - word_start_pos > 1 ):
+                                    self.addRect.emit( (cbox[0] + word_start_pos, cbox[1], cbox[0] + i, cbox[3]),255,0,0,255, 1  )
+                                    word_image = coord_removed_bg[ 0: , word_start_pos: i]
+                                    
+                                    mnistImageRatio = MnistCnnModel.IMG_COLS / float(MnistCnnModel.IMG_ROWS)
+                                    wordImageRatio = word_image.shape[1] / word_image.shape[0]
+                                    if( mnistImageRatio < wordImageRatio ):
+                                        word_image = imutils.resize( word_image, width = int(6* MnistCnnModel.IMG_COLS // 7) )
+                                    else:
+                                        word_image = imutils.resize( word_image, height = int(6* MnistCnnModel.IMG_ROWS // 7) )
+                                    wiH, wiW = word_image.shape[:2]
+                                    wimg_padding = np.zeros(( MnistCnnModel.IMG_ROWS, MnistCnnModel.IMG_COLS ), dtype=np.uint8)
+                                    wimg_padding = 255 - wimg_padding
+                                    try:
+                                        wimg_padding[ int((MnistCnnModel.IMG_ROWS - wiH) / 2): int((MnistCnnModel.IMG_ROWS + wiH) / 2),
+                                              int((MnistCnnModel.IMG_COLS - wiW) / 2): int((MnistCnnModel.IMG_COLS + wiW) / 2)  ] = word_image
+                                    except ValueError:
+                                        pass
+
+                                    #if not cv2.imwrite(os.path.join(os.path.expanduser('~'),'Desktop',f'word{i}.png'), wimg_stable):
+                                    #    raise Exception("Could not write image")
+                                    print('score sum: %.3f' % score_sum )
+                                    cv2.imshow('wi', wimg_padding)
+                                    cv2.waitKey(0)
+                                    #coords_txt = self.ocr.read( wimg_padding, config='-l eng --oem 1 --psm 8')
+                                    #coords_txt = coords_txt.replace('\n',' ')
+                                    #print( coords_txt )
+                                    self.mnist.predict( wimg_padding )
+                                    print('-----------------------')
+                                    
+                        else:
+                            cv2.line( hHist, (i, 0), (i, invVal), 255, 1) # word
+                            if not word_start:
+                                word_start = True
+                                score_sum = 0
+                                word_start_pos = i
+                            else:
+                                score_sum += score
+                    
+                    histDist = np.vstack([coord_removed_bg, hHist])
+                    cv2.imshow('histDst', histDist)
+                    cv2.waitKey(0)
+                    '''
                     coords_txt = self.ocr.read(coord_removed_bg,config='-l eng --oem 1 --psm 13')
                     coords_txt = coords_txt.replace('\n',' ')
                     txt = re.sub('\D',' ', coords_txt)
@@ -434,8 +596,9 @@ class Sweeper( QObject ):
                         digits += ( int(split[i]), )
                     self.changeLocation.emit(digits)
                     self.reportState.emit( f'location: #{digits[0]} x{digits[1]} y{digits[2]}', True )
+                    '''
                 return
-            except Exception as e:
+            except IndexError as e:
                 self.reportState.emit(f'ocr error:{e}', True)
             self.reportState.emit('no coordinates info', True)
 
@@ -558,7 +721,6 @@ class Sweeper( QObject ):
                 #cv2.waitKey()
             return (fitContours, px, py, ratio)
                     
-
         with ThreadPoolExecutor() as executor:
             ocrFuture = executor.submit( ocrDialog, x, y, w, h, img_src)
             rubyFuture = executor.submit( rubyTemplateMatch, x,y, w, h, img_gray)
@@ -756,23 +918,6 @@ class Sweeper( QObject ):
         
         return None
 
-    def onChange_th1(self, k):
-        if k > 0:
-            self.th1 = k
-            self.c_dst = cv2.Canny(cv2.GaussianBlur(self.c_src,(self.gb,self.gb),0) , self.th1, self.th2)
-            cv2.imshow(self.windowName, self.c_dst)
-    
-    def onChange_th2(self, k):
-        if k > 0:
-            self.th2 = k
-            self.c_dst = cv2.Canny(cv2.GaussianBlur(self.c_src,(self.gb,self.gb),0) , self.th1, self.th2)
-            cv2.imshow(self.windowName, self.c_dst)
-            
-    def onChange_gb(self, k):
-        self.gb = k * 2 + 1
-        self.c_dst = cv2.Canny(cv2.GaussianBlur(self.c_src,(self.gb,self.gb),0) , self.th1, self.th2)
-        cv2.imshow(self.windowName, self.c_dst) 
-
     def analyzeRobot2Dialog( self, img_gray:np.ndarray, dialogBox:tuple, buttonBox:tuple, headlineBox:tuple):
       try:  
         print( f'dialog:{dialogBox}, button:{buttonBox}, headline:{headlineBox}')
@@ -833,8 +978,7 @@ class Sweeper( QObject ):
       except Exception as e:
           print(e)
 
-
-    def crackRobotCheck( self, img_src:np.ndarray = None, img_gray:np.ndarray = None, adjustMode = False ):
+    def crackRobotCheck( self, img_src:np.ndarray = None, img_gray:np.ndarray = None, adjustMode:bool = True ):
 
         if self.crack_image_box is None or self.crack_button_box is None or len(self.crack_tm_box_list)<1:
             print( 'crack data unsatisfied')
@@ -847,20 +991,40 @@ class Sweeper( QObject ):
 
         cx1, cy1, cx2, cy2 = self.crack_image_box
         img_to_crack = img_src[cy1:cy2, cx1:cx2]
-        self.c_src = img_to_crack
-        self.th1 = 300
-        self.th2 = 300
-        self.gb = 7
-        self.c_dst = cv2.Canny(cv2.GaussianBlur(self.c_src,(self.gb,self.gb),0) , self.th1, self.th2)
-        if bool(adjustMode):
-            cv2.imshow('Canny',self.c_dst)
-            self.windowName = 'Canny'
-            cv2.createTrackbar('th1', 'Canny', 0, 300, self.onChange_th1)
-            cv2.createTrackbar('th2', 'Canny', 0, 300, self.onChange_th2)
-            cv2.createTrackbar('gb', 'Canny', 0, 10, self.onChange_gb)
-            cv2.waitKey()
 
-        content_canny = self.c_dst
+        def changeCo(k, i, adj = False):
+            if i == 0:
+                changeCo.th1 = k
+            elif i == 1:
+                changeCo.th2 = k
+            else:
+                changeCo.gbf = k
+            gb = changeCo.gbf * 2 + 1
+            changeCo.c_dst = cv2.Canny(cv2.GaussianBlur(changeCo.c_src, 
+                 (gb,gb),0), 
+                 changeCo.th1, changeCo.th2)
+            if adj:
+                cv2.imshow(changeCo.windowName, changeCo.c_dst)
+        
+        changeCo.c_src = img_to_crack
+        changeCo.th1 = 300
+        changeCo.th2 = 300
+        changeCo.gbf = 3
+        changeCo.windowName = 'Canny'
+        changeCo.c_dst = None
+
+        changeCo(300, 0, adj = adjustMode)
+    
+        if bool(adjustMode):
+            cv2.createTrackbar('th1', changeCo.windowName, changeCo.th1, 300, lambda k: changeCo(k, 0, True))
+            cv2.createTrackbar('th2', changeCo.windowName, changeCo.th2, 300, lambda k: changeCo(k, 1, True))
+            cv2.createTrackbar('gb', changeCo.windowName, changeCo.gbf, 10, lambda k: changeCo(k, 2, True))
+            cv2.waitKey(0)
+        
+        content_canny = changeCo.c_dst
+
+        if content_canny is None:
+            return
         self.changeScreen.emit( content_canny )
         content_canny_rgb = cv2.cvtColor(content_canny, cv2.COLOR_GRAY2RGB)
 
@@ -894,12 +1058,12 @@ class Sweeper( QObject ):
         tmBoxCount = len(self.crack_tm_box_list)
         
         with ThreadPoolExecutor(max_workers=tmBoxCount) as executor:
+            matchBoxes = dict()
             futuresGroup = {executor.submit( matchCrackTemplate, int(i+1), img_src[
                 self.crack_tm_box_list[i][1]:self.crack_tm_box_list[i][3], 
                 self.crack_tm_box_list[i][0]:self.crack_tm_box_list[i][2]], content_canny ):
             i for i in range(0,tmBoxCount)}
 
-            matchBoxes = dict()
             for future in futures.as_completed(futuresGroup):
                 num, box = future.result()
                 #print(f'#{num} result returned')

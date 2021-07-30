@@ -14,7 +14,6 @@ if __name__ == '__main__':
     print(f"width={systemResolution[0]}\theight={systemResolution[1]}")
     
     rokAiMainUi = RokAMU(systemResolution)
-    rokAiMainUi.show()
     
 
     sys.exit(app.exec_())

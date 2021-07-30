@@ -81,7 +81,7 @@ class Overlay(QMainWindow):
 
     def addRect(self, box:tuple, r:int, g:int, b:int, alpha:int, thickness:int):
 
-        print(f'addRect: {box}')
+        #print(f'addRect: {box}')
         x1, y1, x2, y2 = box
         w = x2 - x1
         h = y2 - y1
