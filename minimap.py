@@ -163,7 +163,7 @@ class MapPalette(QWidget):
             qp.end()
 
 class MiniMap(QMainWindow):
-    def __init__(self, signId, amuSignals, threadPool, sweeper: Sweeper, mutex:Lock, parent=None):
+    def __init__(self, signId, amuSignals, sweeper: Sweeper, mutex:Lock, parent=None):
         QMainWindow.__init__(self, parent)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.palette = MapPalette(self)

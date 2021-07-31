@@ -1,48 +1,18 @@
 from concurrent import futures
-from PyQt5.QtCore import QMutex, QObject, QRunnable, QWaitCondition, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QMutex, QObject, QRunnable, QWaitCondition, pyqtSignal
 import cv2
 from PIL import ImageGrab
 import numpy as np
 import imutils
-import os
 import re
 import pyautogui
 from pathlib import Path
 from shape import ShapeDetector
 from concurrent.futures import ThreadPoolExecutor
-from mnist import MnistCnnModel
 from ocr import OcrEngine
-
-'''
-state flow
-1.상태체크
- a.팝업 확인 -> normar or dialog
- normal: field or home // 낮밤 : multithreading and join
- field: field or home // 좌표and좌표평가 // 루비 // 부대수 : multithreading and join
- home: to field -> field or home
-
- field or home : 좌표 -> 좌표확인 -> 중간클릭 -> 팝업 -> 팝업좌표확인 -> 일치 -> 내성 위치저장 and 팝업종료클릭 -> field
-                                                                    일치x -> 
-                                                    -> 좌표x ->
-                                           -> 팝업x -> 다시클릭(팝업까지)
-                      -> 좌표x -> 중간클릭 -> 팝업
-                                         -> 팝업x
- field 버튼 ox 
- 좌표 
-
-'''
-
 
 TH_BUTTON0 = 160
 TH_BUTTON1= 180
-TH_BUTTON2 = 200
-TH_BUTTON3 = 220
-
-TH_RECT_APP = 70
-
-TH_RECT_DIALOG1 = 60
-TH_RECT_DIALOG2 = 127
-TH_RECT_DIALOG3 = 160
 
 TH_HEADLINE = 170
 
@@ -53,7 +23,6 @@ TH_NIGHT_AND_DAY = 127
 TH_DIALOG = 127
 TH_CRACK = 127
 RATIO_HEAD_IN_DIALOG = 0.12
-RATIO_LOWER_DIALOG = 0.7
 TH_CONTRAST_RATIO_WB_ND = 0.3 # lower -> night, upper -> daytime
 
 def findContourList(img, *args):
@@ -69,7 +38,7 @@ def findContourList(img, *args):
     return contours
 
 def selectContours( img_gray: np.ndarray, tVal = 127):
-        resized = imutils.resize(img_gray, width = 300)
+        resized = imutils.resize(img_gray, width = 320)
         ratio = img_gray.shape[0] / float(resized.shape[0])
         blurred = cv2.GaussianBlur(resized,(3,3), 0 )
         img_thresh = cv2.threshold(blurred, tVal, 255, cv2.THRESH_BINARY)[1]
@@ -137,18 +106,20 @@ class SweeperWorkFlow(QRunnable):
                         coordsResult = coordsFuture.result()
                         whereResult = whereFuture.result()
                         troopsResult = troopsFuture.result()
-                        print(f'when:{whenResult}, where:{whereResult}, coords:{coordsResult}')
+                        if self.level > 1:
+                            self.sweeper.findRuby(img_gray)
 
-
+                        #print(f'when:{whenResult}, where:{whereResult}, coords:{coordsResult}')
                 else:
                     self.sweeper.identifyDialog( dialogBox, img_src, img_gray )
 
         self.signals.finished.emit()
 
-    def __init__(self, sweeper, *args, flow:int = 0):
+    def __init__(self, sweeper, *args, flow:int = 0, level:int=1):
         QRunnable.__init__(self)
         self.flow = flow
         self.sweeper = sweeper
+        self.level = level
         self.signals = SweeperWorkFlowSignals()
         self.args = args
         #if args is not None and len(args)> 0:
@@ -225,12 +196,10 @@ class Sweeper( QObject ):
     WHEN_DAY = 2
     
     NO_DIALOG = 0
-    DIALOG_ROBOT1 = 1
-    DIALOG_ROBOT2 = 2
+    DIALOG_ROBOT = 1
+    DIALOG_RUBY = 2
     DIALOG_UNKNOWN = 3
-    DIALOG_RUBY0 = 4
-    DIALOG_RUBY1 = 5
-    DIALOG_RUBY2 = 6
+    INIT_STATE = 9
     
     changeLocation = pyqtSignal(tuple) # to minimap
 
@@ -247,15 +216,13 @@ class Sweeper( QObject ):
 
     plotPlt = pyqtSignal( np.ndarray )
 
-    def __init__(self, ocr, methodName='cv2.TM_CCOEFF_NORMED', parent = None):
+    def __init__(self, methodName='cv2.TM_CCOEFF_NORMED', parent = None):
         QObject.__init__(self, parent)
         
         if methodName is not None:
             self.setMethodName(methodName)
 
         self.bbox:tuple = None
-        self.img_src:np.ndarray = np.zeros((1,1,1))
-        #print( self.img_src.shape )
         self.loadTmImages()
         
 
@@ -271,9 +238,9 @@ class Sweeper( QObject ):
 
         self.ocr = OcrEngine('-l eng+kor --oem 1 --psm3') #default config
         self.shapeDetector = ShapeDetector()
-        self.mnist = MnistCnnModel()
-        self.mnist.loadingSignal.connect(lambda name:print('loading %s...' % name))
-        self.mnist.loadCompleteSignal.connect(lambda name, t:print('%s loaded in %.3fs' % (name, t)))
+        #self.mnist = MnistCnnModel()
+        #self.mnist.loadingSignal.connect(lambda name:print('loading %s...' % name))
+        #self.mnist.loadCompleteSignal.connect(lambda name, t:print('%s loaded in %.3fs' % (name, t)))
 
         #from multiprocessing.pool import ThreadPool as tp
         #pool = tp(processes = 1)
@@ -310,9 +277,7 @@ class Sweeper( QObject ):
                                                      TH_BUTTON1, 255, cv2.THRESH_BINARY)[1]
         self.template_expand_troops = cv2.threshold(cv2.imread(f'{assets_dir}/btn_expand_troops.png',cv2.IMREAD_GRAYSCALE), 
                                                      TH_BUTTON0, 255, cv2.THRESH_BINARY)[1]
-        self.template_head_robot1 = cv2.threshold(cv2.imread(f'{assets_dir}/head_robot1.png',cv2.IMREAD_GRAYSCALE), 
-                                                     TH_HEADLINE, 255, cv2.THRESH_BINARY)[1]
-        self.template_head_robot2 = cv2.threshold(cv2.imread(f'{assets_dir}/head_robot2.png',cv2.IMREAD_GRAYSCALE), 
+        self.template_head_robot = cv2.threshold(cv2.imread(f'{assets_dir}/head_robot.png',cv2.IMREAD_GRAYSCALE), 
                                                      TH_HEADLINE, 255, cv2.THRESH_BINARY)[1]
 
     def setMethodName(self, name):
@@ -324,7 +289,7 @@ class Sweeper( QObject ):
 
     def checkFieldOrHome(self, img_gray:np.ndarray = None):
         if img_gray is None:
-            img_gray = cv2.cvtColor(self.img_src,cv2.COLOR_BGR2GRAY)
+            img_gray = self.captureScreen()[1]
 
         imgHeight, imgWidth = img_gray.shape[:2]
         pY = int( imgHeight*0.7 )
@@ -365,10 +330,8 @@ class Sweeper( QObject ):
         return False
 
     def checkCurrentTroops( self, img_src:np.ndarray=None, img_gray:np.ndarray=None):
-        if img_src is None:
-            img_src = self.img_src.copy()
-        if img_gray is None:
-            img_gray = cv2.cvtColor(img_src,cv2.COLOR_BGR2GRAY)
+        if img_src is None or img_gray is None:
+            img_src, img_gray = self.captureScreen()
         h, w = img_gray.shape[:2]
         ix = int(0.9*w)
         iy = int(0.1*h)
@@ -394,222 +357,71 @@ class Sweeper( QObject ):
                     ty2 = int( ty2 - 0.15*th )
                     globalTroopsCountBox = (tx1, ty1, tx2 , ty2)
                     self.addRect.emit( globalTroopsCountBox,255,0,255,255, 2 )
-                    cnt_gray = 255-img_gray[ty1:ty2,tx1:tx2]
-                    resized = imutils.resize(cnt_gray, width = 300)
-                    troops_txt = self.ocr.read(resized,config='--oem 1 --psm 13')
-               
-                    print( f't count: {troops_txt}')
+                    cnt_color = self.ocr.hsvMasking( img_src[ty1:ty2,tx1:tx2], interval = 20)
+                    #cnt_gray, r = self.ocr.preprocessing(src_gray = img_gray[ty1:ty2,tx1:tx2], height= 32, adjMode=False, stackAxis=1)
+                    if cnt_color is not None:
+                        troops_txt = self.ocr.read(cnt_color,config='--oem 1 --psm 13')
+                        print( f't count: {troops_txt}')
                 except Exception as e:
                     print( f'exception while count troops:{e}')
             
     def detectCoordinates(self, img_src:np.ndarray=None, img_gray:np.ndarray = None):
-        if img_src is None:
-            img_src = self.img_src.copy()
-        if img_gray is None:
-            img_gray = cv2.cvtColor(img_src,cv2.COLOR_BGR2GRAY)
+        if img_src is None or img_gray is None:
+            img_src, img_gray = self.captureScreen()
         imgHeight, imgWidth = img_gray.shape[:2]
 
-        img_topLeft = img_src[0:int(imgHeight*0.1),0:int(imgWidth*0.5)]
+        #img_topLeft = img_src[0:int(imgHeight*0.1),0:int(imgWidth*0.5)]
         img_topLeft_gray = img_gray[0:int(imgHeight*0.1),0:int(imgWidth*0.5)]
 
-        rectExist,bbox, detected  = self.selectBigRectContour(img_topLeft_gray,150, minRate=0.1, maxRate=0.6)
-       
-        if rectExist:
-            try:
-                bx,by,x2,y2 = bbox
-                w = x2-bx
-                h = y2-by
-                cbox = (bx + w , by+int(0.1*h), bx+int(2.1*w), by+int(0.9*h) )
-                cW = cbox[2] - cbox[1]
-                cH = cbox[3] - cbox[0]
-                #coords_part = img_topLeft[cbox[1]:cbox[3], cbox[0]:cbox[2]]
-                coords_part_gray = img_topLeft_gray[cbox[1]:cbox[3], cbox[0]:cbox[2]]
-                #self.addRect.emit( cbox,255,0,255,255, 2  )
-                
-                coords_thresh = cv2.threshold(coords_part_gray, 127, 255, cv2.THRESH_BINARY)[1]
-                coords_blur = cv2.GaussianBlur(coords_thresh,(11,11),0)  #advanced config # blur value
-                coords_canny = cv2.Canny(coords_blur, 50, 100)  #advanced config # canny value
-                coords_contours = findContourList(coords_canny, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        rectExist,bbox, detected  = self.selectBigRectContour(img_topLeft_gray,140, minRate=0.1, maxRate=0.6)
 
-                canny_to_rgb = cv2.cvtColor(coords_canny, cv2.COLOR_GRAY2RGB)
-                print(f'c len: {len(coords_contours)}')
+        if not rectExist:
+            self.reportState.emit('location: cannot detect coordinates box', True)
+            return
+        try:
+            bx,by,x2,y2 = bbox
+            self.addRect.emit( bbox,255,0,0,255, 2  )
+            bw = x2-bx
+            bh = y2-by
+            cbox = (bx + bw , by + int(0.15*bh), bx+int(2.2*bw), by + int(0.9*bh) )
+            coords_part_gray = img_topLeft_gray[cbox[1]:cbox[3], cbox[0]:cbox[2]]
+            self.addRect.emit( cbox,255,0,255, 200, 2  )
+            
+            dst, r = self.ocr.preprocessing(src_gray=coords_part_gray, height=64, adjMode=False)
 
-
-                for contour in coords_contours:
-                    conW,conH = cv2.boundingRect(contour)[2:]
-                    if conH * 2 > cH and conW * 5 > cW:
-                        cv2.drawContours(canny_to_rgb, [contour],0,(255,0,0),1)
-
-                if True:
-                    
-                    
-                    def onChange_ksize( k , i ):
-                        if i == 0:
-                            onChange_ksize.bkf = k
-                        elif i == 1:
-                            onChange_ksize.rkf1 = k
-                        else:
-                            onChange_ksize.rkf2 = k
-
-                        bk = 2 * onChange_ksize.bkf + 1
-                        rk1 = 2 * onChange_ksize.rkf1 + 1
-                        rk2 = 2 * onChange_ksize.rkf2 + 1 
-
-                        cpH = coords_part_gray.shape[1]
-                        resizeRatio = cpH / float( 64 )
-                        resized = imutils.resize( 255 - coords_part_gray, height= 64 )
-                        blur = cv2.GaussianBlur( resized, (bk,bk), 0 )
-                        coord_removed_bg = self.ocr.removeBackground(blur, kernel1=rk1, kernel2=rk2)
-                        coord_thresh_otsu = cv2.threshold(coord_removed_bg, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)[1]
-                        coord_thresh_gauss = cv2.adaptiveThreshold(coord_removed_bg,255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-                        coord_thresh_mean = cv2.adaptiveThreshold(coord_removed_bg,255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
-                        coord_result = cv2.bitwise_or(coord_thresh_otsu, coord_thresh_mean )
-                        cv2.imshow('coord', np.vstack([ blur, coord_removed_bg, coord_thresh_otsu, coord_thresh_mean, coord_result]))
-                    onChange_ksize.bkf = 0
-                    onChange_ksize.rkf1 = 0
-                    onChange_ksize.rkf2 = 0
-                    onChange_ksize( 0, 0 )
-                    cv2.createTrackbar('bk', 'coord', 0, 20, lambda k: onChange_ksize( k, 0 ))
-                    cv2.createTrackbar('rk1', 'coord', 0, 10, lambda k: onChange_ksize( k, 1))
-                    cv2.createTrackbar('rk2', 'coord', 0, 20, lambda k: onChange_ksize( k, 2))
-                    cv2.waitKey(0)
-
-
-                    return
-                    
-                    crbW = coord_removed_bg.shape[1]
-
-                    
-                    
-                    row_pixel_sum = np.sum(coord_removed_bg, axis=1)
-                    proj = row_pixel_sum / 255
-                    vHist = np.zeros_like( coord_removed_bg )
-
-                    projStartPos = 0
-                    maxPos = [0, 0]
-                    row_score_sum = 0
-                    max_score_sum = 0
-                    row_start = False
-                    for i, val in enumerate( proj ):
-                        invVal = int(crbW - val)
-                        score = invVal / float(crbW)
-                        if score > 0.01:
-                            if not row_start:
-                                row_start = True
-                                projStartPos = i
-                                row_score_sum = score
-                            else:
-                                row_score_sum += score
-                        else:
-                            if row_start:
-                                row_start = False
-                                if row_score_sum > max_score_sum:
-                                    max_score_sum = row_score_sum
-                                    maxPos[0] = projStartPos
-                                    maxPos[1] = i
-                        cv2.line( vHist, (0, i), (invVal, i), 255, 1)
-
-                    print( f'maxPos:{maxPos}')
-                    if maxPos[1] - maxPos[0] == 0:
-                        return
-                    self.addRect.emit( (cbox[0], cbox[1] + maxPos[0], cbox[2], cbox[1] + maxPos[1]),0,255,0,255, 1  )
-                    
-                    histDist = np.hstack([coord_removed_bg, vHist])
-                    #cv2.imshow('histDst', histDist)
-                    #cv2.waitKey(0)
-                    coord_removed_bg = coord_removed_bg[ maxPos[0]: maxPos[1], 0:]
-                    crbH = coord_removed_bg.shape[0]
-                    #cv2.imshow('coord_removed_bg', coord_removed_bg)
-                    #cv2.waitKey(0)
-                    return
-
-                    column_pixel_sum = np.sum(coord_removed_bg, axis = 0 )
-                    proj = column_pixel_sum / 255
-
-                    hHist = np.zeros_like( coord_removed_bg )
-                    word_start = False
-                    word_start_pos = 0
-                    score_sum = 0
-                    for i, val in enumerate( proj ):
-                        invVal = crbH - int(val)
-                        #cv2.line( hist, (i, 0), (i, invVal), 255, 1)
-                        score = invVal / float(crbH) # 0 ~ 1
-                        if score < 0.01:
-                            #cv2.line( hist, (i, 0), (i, crbH), 0, 1) # not word
-                            if word_start:
-                                #print( f'word end at {i}')
-                                word_start = False
-                                if( i - word_start_pos > 1 ):
-                                    self.addRect.emit( (cbox[0] + word_start_pos, cbox[1], cbox[0] + i, cbox[3]),255,0,0,255, 1  )
-                                    word_image = coord_removed_bg[ 0: , word_start_pos: i]
-                                    
-                                    mnistImageRatio = MnistCnnModel.IMG_COLS / float(MnistCnnModel.IMG_ROWS)
-                                    wordImageRatio = word_image.shape[1] / word_image.shape[0]
-                                    if( mnistImageRatio < wordImageRatio ):
-                                        word_image = imutils.resize( word_image, width = int(6* MnistCnnModel.IMG_COLS // 7) )
-                                    else:
-                                        word_image = imutils.resize( word_image, height = int(6* MnistCnnModel.IMG_ROWS // 7) )
-                                    wiH, wiW = word_image.shape[:2]
-                                    wimg_padding = np.zeros(( MnistCnnModel.IMG_ROWS, MnistCnnModel.IMG_COLS ), dtype=np.uint8)
-                                    wimg_padding = 255 - wimg_padding
-                                    try:
-                                        wimg_padding[ int((MnistCnnModel.IMG_ROWS - wiH) / 2): int((MnistCnnModel.IMG_ROWS + wiH) / 2),
-                                              int((MnistCnnModel.IMG_COLS - wiW) / 2): int((MnistCnnModel.IMG_COLS + wiW) / 2)  ] = word_image
-                                    except ValueError:
-                                        pass
-
-                                    #if not cv2.imwrite(os.path.join(os.path.expanduser('~'),'Desktop',f'word{i}.png'), wimg_stable):
-                                    #    raise Exception("Could not write image")
-                                    print('score sum: %.3f' % score_sum )
-                                    cv2.imshow('wi', wimg_padding)
-                                    cv2.waitKey(0)
-                                    #coords_txt = self.ocr.read( wimg_padding, config='-l eng --oem 1 --psm 8')
-                                    #coords_txt = coords_txt.replace('\n',' ')
-                                    #print( coords_txt )
-                                    self.mnist.predict( wimg_padding )
-                                    print('-----------------------')
-                                    
-                        else:
-                            cv2.line( hHist, (i, 0), (i, invVal), 255, 1) # word
-                            if not word_start:
-                                word_start = True
-                                score_sum = 0
-                                word_start_pos = i
-                            else:
-                                score_sum += score
-                    
-                    histDist = np.vstack([coord_removed_bg, hHist])
-                    cv2.imshow('histDst', histDist)
-                    cv2.waitKey(0)
-                    '''
-                    coords_txt = self.ocr.read(coord_removed_bg,config='-l eng --oem 1 --psm 13')
-                    coords_txt = coords_txt.replace('\n',' ')
-                    txt = re.sub('\D',' ', coords_txt)
-                    
-                    split = re.split('\s+', txt)
-                    split = [e for e in split if e != '']
-
-                self.reportState.emit( f'location(ocr): {coords_txt}', True )
-                if( len(split) == 3):
-                    digits = tuple()
-                    for i in range(0,3):
-                        digits += ( int(split[i]), )
-                    self.changeLocation.emit(digits)
-                    self.reportState.emit( f'location: #{digits[0]} x{digits[1]} y{digits[2]}', True )
-                    '''
+            if dst is  None:
+                self.reportState.emit('location: fail to preprocess', True)
                 return
-            except IndexError as e:
-                self.reportState.emit(f'ocr error:{e}', True)
-            self.reportState.emit('no coordinates info', True)
+
+            coords_txt = self.ocr.read(dst,config='-l eng --oem 1 --psm 13')
+            coords_txt = coords_txt.replace('\n','')
+            print(f'result: {coords_txt}')
+
+            txt = re.sub('\D',' ', coords_txt)
+            split = re.split('\s+', txt)
+            split = [e for e in split if e != '']
+
+            self.reportState.emit( f'location(ocr): {coords_txt}', True )
+            if( len(split) == 3):
+                digits = tuple()
+                for i in range(0,3):
+                    digits += ( int(split[i]), )
+                self.changeLocation.emit(digits)
+                self.reportState.emit( f'location: #{digits[0]} x{digits[1]} y{digits[2]}', True )
+        except Exception as e:
+            self.reportState.emit(f'location: error->{e}', True)
+            
 
     def captureScreen( self ):
-        waitCondition = QWaitCondition()
-        mutex = QMutex()
-
-        self.initStateFlags()
-        self.reportState.emit('', False)
-        self.clearRects.emit(waitCondition)
         try:
+            self.changeScreen.emit( np.zeros( (self.bbox[3], self.bbox[2]) ) )
+            waitCondition = QWaitCondition()
+            mutex = QMutex()
+
+            self.initStateFlags()
+            self.reportState.emit('', False)
+            self.clearRects.emit(waitCondition)
+
             mutex.lock()
             waitCondition.wait(mutex)
             mutex.unlock()
@@ -618,50 +430,23 @@ class Sweeper( QObject ):
             img_pil = ImageGrab.grab(bbox=self.bbox)
             img_src = np.array(img_pil)
             img_gray = cv2.cvtColor(img_src, cv2.COLOR_BGR2GRAY)
-            self.img_src = img_src.copy()
-            #print(self.img_src.shape)
             return (img_src, img_gray)
         except Exception as e:
             print( f'exception while capture: {e}')
         return None
 
     def identifyDialog(self, bbox, img_src:np.ndarray=None, img_gray:np.ndarray=None):
-        if img_src is None:
-            img_src = self.img_src.copy()
-        if img_gray is None:
-            img_gray = cv2.cvtColor(img_src,cv2.COLOR_BGR2GRAY)
+        if img_src is None or img_gray is None:
+            img_src, img_gray = self.captureScreen()
         x, y, x2, y2 = bbox
         w = x2 - x
         h = y2 - y
 
-        def ocrDialog( x, y, w, h, img_src):
-            dialog_head = img_src[y:y+int(h*RATIO_HEAD_IN_DIALOG),x:x+w]
-            head_gray, part_thresh = self.ocr.preprocessing( dialog_head )
-
-            ocr_txt = str(self.ocr.read(part_thresh,config='-l kor --oem 1 --psm 7'))
-            orc_txt_no_lines = os.linesep.join([s for s in ocr_txt.splitlines() if s])
-            ocr_txt_no_blank = orc_txt_no_lines.replace(' ','')
-            print('ocr_in_block(thresh):' + ocr_txt_no_blank)
-
-            if( ocr_txt_no_blank == ''):
-                ocr_txt = str(self.ocr.read(head_gray,config='-l kor --oem 1 --psm 7'))
-                orc_txt_no_lines = os.linesep.join([s for s in ocr_txt.splitlines() if s])
-                ocr_txt_no_blank = orc_txt_no_lines.replace(' ','')
-                print('ocr_in_block(gray):' + ocr_txt_no_blank)
-        
-            head_line = ocr_txt_no_blank.replace('\n','')
-            self.reportState.emit(f'headline(ocr): {head_line}', True)
-            return head_line
-
-        def headlineMatch( x,y,w,h,img_gray):
+        def robotMatch( x,y,w,h,img_gray):
             dialog_head = img_gray[y:y+int(h*RATIO_HEAD_IN_DIALOG),x:x+w]
-            match_result = self.multiScaleMatch(self.template_head_robot1, dialog_head, min=0.01, max=4.0, counts = 40, matchVal=0.6 )
-            if match_result is not None:
-                state = self.DIALOG_ROBOT1
-            else:
-                match_result = self.multiScaleMatch(self.template_head_robot2, dialog_head, min=0.01, max=4.0, counts = 40, matchVal=0.6 )
-                if match_result is not None:
-                    state = self.DIALOG_ROBOT2
+            
+            match_result = self.multiScaleMatch(self.template_head_robot, dialog_head, min=0.01, max=4.0, counts = 40, matchVal=0.6 )
+            
             if match_result is not None:
                 matchVal,top_left,bottom_right,r = match_result
                 rTopLeft = (int(r*top_left[0]),int(r*top_left[1]))
@@ -670,7 +455,7 @@ class Sweeper( QObject ):
                 x1,y1,x2,y2 = localHeadlineBox
                 globalHeadlineBox = (x+x1, y+y1, x+x2, y+y2)
                 self.addRect.emit( globalHeadlineBox,255,0,255,255, 2  )
-                return (state, globalHeadlineBox)
+                return globalHeadlineBox
             return None
 
         def rubyTemplateMatch( x, y, w, h, img_gray ):
@@ -689,96 +474,114 @@ class Sweeper( QObject ):
                 return True
             return False
 
-        def findButtons( x, y, w, h, img_gray):
+        def findButtons( x, y, w, h, img_src):
             px = x
-            py = y + int(h*RATIO_LOWER_DIALOG)
-            dialog_lower = img_gray[py:y+h,px:x+w]
-            fitContours = list()
+            py = y + int(h*0.5)
+        
             try:
-                contours, img_thresh, ratio = selectContours( dialog_lower, TH_BUTTON2 )
+                dialog_lower = img_src[py:y + h,px:x+w]
+                hsv = cv2.cvtColor(dialog_lower, cv2.COLOR_BGR2HSV)
+
+                fitContours = list()
+                lower_blue = np.array([0,150,0])
+                uppper_blue = np.array([40,255,255])
+                mask_blue = cv2.inRange(hsv, lower_blue, uppper_blue)
+
+                #def changeHsv( k ):
+                #    hmin = k
+                #    hmax = k + 40
+                #    lower_th = np.array([hmin,150,0])
+                #    uppper_th = np.array([hmax,255,255])
+                #    mask = cv2.inRange(hsv, lower_th, uppper_th)
+                #    cv2.imshow('ddd', mask)
+                
+                #changeHsv( 0 )
+                #cv2.createTrackbar('h', 'ddd', 0, 140, lambda k: changeHsv( k ))
+                #cv2.waitKey(0)
+
+                lower_red = np.array([110,150,0])
+                uppper_red = np.array([130,255,255])
+                mask_red = cv2.inRange(hsv, lower_red, uppper_red)
+
+                mask = cv2.bitwise_or( mask_blue, mask_red )
+
+                
+
+                contours = findContourList(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
             
                 if len( contours ) > 0:
-                    img_rgb = cv2.cvtColor(img_thresh,cv2.COLOR_GRAY2RGB)
+                    mask_rgb = cv2.bitwise_and( dialog_lower, dialog_lower, mask = mask )
+                    mask_rgb = cv2.cvtColor(mask_rgb, cv2.COLOR_BGR2RGB)
                     for i in  range( 0, len( contours )):
                         contour = contours[i]
                         cw,ch = cv2.boundingRect(contour)[2:]
-                        if cw * 1.5 < w and cw * 5 > w and ch * 20 > h and ch * 3 < h:
-                            shape = self.shapeDetector.detect(contour)
+                        if cw < w and cw * 5 > w and ch * 20 > h and ch < h:
+                            shape = self.shapeDetector.detect(contour, 0.02)
                             print( f'button shape:{shape}')
-                            if shape == 1:
-                                cv2.drawContours(img_rgb, [contour],0,(255,0,0),3)
                             if shape == 2:
-                                cv2.drawContours(img_rgb, [contour],0,(0,255,0),3)
-                            if shape == 9:
-                                cv2.drawContours(img_rgb, [contour],0,(0,0,255),3)
-                            if shape in [ShapeDetector.SHAPE_RECTANGLE, ShapeDetector.SHAPE_SQUARE, ShapeDetector.SHAPE_CIRCLE]:
+                                cv2.drawContours(mask_rgb, [contour],0,(255,0,0),3)
+                            if shape == 3:
+                                cv2.drawContours(mask_rgb, [contour],0,(0,255,0),3)
+                            else:
+                                cv2.drawContours(mask_rgb, [contour],0,(0,0,255),3)
+                            if shape in [ShapeDetector.SHAPE_RECTANGLE, ShapeDetector.SHAPE_SQUARE]:
                                 fitContours += (contour,)
+                    self.changeScreen.emit(mask_rgb)
             except Exception as e:
-                ratio = 1.0
                 print(f'exception while find buttons:{e}')
                             
                 #cv2.imshow('aaa', img_rgb)
-                #cv2.waitKey()
-            return (fitContours, px, py, ratio)
+                #cv2.waitKey()dddd
+            return (fitContours, px, py)
                     
         with ThreadPoolExecutor() as executor:
-            ocrFuture = executor.submit( ocrDialog, x, y, w, h, img_src)
             rubyFuture = executor.submit( rubyTemplateMatch, x,y, w, h, img_gray)
-            buttonFuture = executor.submit( findButtons, x,y, w, h, img_gray)
-            headlineFuture = executor.submit(headlineMatch, x,y,w,h, img_gray)
+            buttonFuture = executor.submit( findButtons, x,y, w, h, img_src)
+            robotFuture = executor.submit(robotMatch, x,y,w,h, img_gray)
 
-            head_line = ocrFuture.result()
             rubyResult = rubyFuture.result()
             buttonResult = buttonFuture.result()
-            headlineFuture = headlineFuture.result()
+            robotResult = robotFuture.result()
 
-            fitButtons, buttonPx, buttonPy, btnRatio = buttonResult
-            btnCount = len(fitButtons)
+            buttons, buttonPx, buttonPy = buttonResult
+            btnCount = len(buttons)
 
             buttonBoxes = list()
-            if btnCount > 0 and btnCount < 3:
+            if btnCount > 0:
+                btns_sorted = sorted( buttons, key=lambda b: cv2.boundingRect(b)[1], reverse=True)
+                lowest_rect =  cv2.boundingRect(btns_sorted[0])
                 for i in range( 0, btnCount ):
-                    fitButton = fitButtons[i]
-                    a, b, c, d = cv2.boundingRect(fitButton)
-                    brect = [a, b, c, d]
-                    for j in range(0, len(brect)):
-                         brect[j] = int( brect[j] * btnRatio )
-                    bx, by, bw, bh = brect
-                    btnBox = ( buttonPx + bx, buttonPy + by, buttonPx + bx + bw,  buttonPy +by + bh)
-                    self.addRect.emit( btnBox, 255,0,0,200, 5)
-                    buttonBoxes += (btnBox,)
-                self.reportState.emit(f'button(s): {btnCount}', True)
-            else:
-                self.reportState.emit(f'button(s): none', True)
-            
-            headlineState = self.DIALOG_UNKNOWN if headlineFuture is None else headlineFuture[0]
-            if rubyResult:
-                self.reportState.emit( 'dialog: ruby', True)
-            elif '사용' in head_line or '순서' in head_line or headlineState == self.DIALOG_ROBOT2:
-                headlineBox = (x,y,x,y) if headlineFuture is None else headlineFuture[1]
-                self.changeState.emit(self.DIALOG_ROBOT2)
-                self.reportState.emit('dialog: check robot2', True)
-                if len(buttonBoxes) == 1:
-                    self.analyzeRobot2Dialog( img_gray, bbox, buttonBoxes[0], headlineBox)
-            elif '보상' in head_line or headlineState == self.DIALOG_ROBOT1:
-                self.changeState.emit(self.DIALOG_ROBOT1)
-                self.reportState.emit('dialog: check robot1', True)
+                    button = buttons[i]
+                    bx, by, bw, bh = cv2.boundingRect(button)
 
-                
+                    if by + bh > lowest_rect[1]:
+                        btnBox = ( buttonPx + bx, buttonPy + by, buttonPx + bx + bw,  buttonPy +by + bh)
+                        self.addRect.emit( btnBox, 255,0,0,200, 5)
+                        buttonBoxes += (btnBox,)
+                btnCount = len( buttonBoxes )
+
+            if rubyResult:
+                self.changeState.emit(self.DIALOG_RUBY)
+                self.reportState.emit( f'dialog: ruby with {btnCount} button(s)', True)
+            elif robotResult is not None:
+                if self.analyzeRobot2Dialog( img_gray, bbox, buttonBoxes, robotResult):
+                    self.changeState.emit(self.DIALOG_ROBOT) 
             else:
                 self.changeState.emit(self.DIALOG_UNKNOWN)
-                self.reportState.emit('dialog: unknown', True)
+                self.reportState.emit(f'dialog: unknown with {btnCount} button(s)', True)
 
     def detectDialog(self, img_gray:np.ndarray = None):
         if img_gray is None:
-            img_gray = cv2.cvtColor(self.img_src,cv2.COLOR_BGR2GRAY)
+            img_gray = self.captureScreen()[1]
 
-        for th in [TH_RECT_DIALOG2, TH_RECT_DIALOG3]:
-            contourExist, bbox, detected = self.selectBigRectContour(img_gray, th, minRate=0.05, maxRate=0.6, max = True)
+        for th in [60, 127, 160]:
+            contourExist, bbox, detected = self.selectBigRectContour(img_gray, th, minRate=0.03, maxRate=0.6, max = True)
             if contourExist:
+                print(f'dialog th: {th}')
                 break
         if contourExist:
             self.changeScreen.emit( detected )
+            self.addRect.emit( bbox, 0,0,255,255, 5 )
             return bbox
         else:
             self.state_dialog = self.NO_DIALOG
@@ -824,7 +627,7 @@ class Sweeper( QObject ):
             
     def detectNightAndDay( self, img_gray:np.ndarray = None ):
         if img_gray is None:
-            img_gray = cv2.cvtColor(self.img_src,cv2.COLOR_BGR2GRAY)
+            img_gray = self.captureScreen()[1]
         img_thresh = cv2.threshold(img_gray, TH_NIGHT_AND_DAY, 255, cv2.THRESH_BINARY)[1]
 
         try:
@@ -856,27 +659,28 @@ class Sweeper( QObject ):
             print( f'no rect: {str(rect)}')
             return
 
+        self.changeState.emit(self.INIT_STATE)
         self.bbox = (rect[0],rect[1],rect[0]+rect[2],rect[1]+rect[3])
         captured = self.captureScreen()
+        
         if captured is None:
             return
-        img_src, img_gray = captured
-        contourExist, bbox, detected = self.selectBigRectContour(img_gray, TH_RECT_APP, minRate=0.6)
+        img_gray = captured[1]
+        contourExist, bbox, detected = self.selectBigRectContour(img_gray, 70, minRate=0.6)
         
         if contourExist is True:
             x1, y1 = rect[:2]
             x3, y3, x4, y4 = bbox
             self.changeBbox.emit( bbox )
             self.bbox = (x1 + x3, y1 + y3, x1 + x4, y1 + y4)
-            self.img_src = img_src[ y3:y4, x3:x4 ]
             self.changeScreen.emit( detected )
         else:
             self.changeScreen.emit( img_gray )
             self.changeBbox.emit( (0,0,rect[2],rect[3]) )
 
-    def findRuby(self, img_gray:np.ndarray = None):
+    def findRuby(self, img_gray:np.ndarray = None ):
         if img_gray is None:
-            img_gray = cv2.cvtColor(self.img_src,cv2.COLOR_BGR2GRAY)
+            img_gray = self.captureScreen()[1]
         
         img_th = None
         match_result = None
@@ -888,7 +692,6 @@ class Sweeper( QObject ):
             return (self.multiScaleMatch( template, img_th), img_th)
 
         try:
-           
             if( self.state_when == self.WHEN_DAY ):
                 match_result, img_th = rubyMatch( img_gray, self.template_ruby_day , TH_RUBY_DAY )
             elif( self.state_when == self.WHEN_NIGHT ):
@@ -918,32 +721,33 @@ class Sweeper( QObject ):
         
         return None
 
-    def analyzeRobot2Dialog( self, img_gray:np.ndarray, dialogBox:tuple, buttonBox:tuple, headlineBox:tuple):
-      try:  
-        print( f'dialog:{dialogBox}, button:{buttonBox}, headline:{headlineBox}')
-        dx1, dy1, dx2, dy2 = dialogBox
-        dw = dx2 - dx1
-        dh = dy2 - dy1
+    def analyzeRobot2Dialog( self, img_gray:np.ndarray, dialogBox:tuple, buttonBoxes:list, headlineBox:tuple):
+
+      try:
+          buttonBox = buttonBoxes.pop()
+          dx1, dy1, dx2, dy2 = dialogBox
+          dw = dx2 - dx1
+          dh = dy2 - dy1
         
-        bx1, by1, bx2,by2 = buttonBox
-        hx2 = headlineBox[2]
+          bx1, by1, bx2,by2 = buttonBox
+          hx2 = headlineBox[2]
 
-        if bx2 + 5 < dx2:
-            dx2 = bx2 + 5
-            dw = dx2 - dx1
-        if by2 + 10 < dy2:
-            dy2 = by2 + 10
-            dh = dy2 - dy1
+          if bx2 + 5 < dx2:
+              dx2 = bx2 + 5
+              dw = dx2 - dx1
+          if by2 + 10 < dy2:
+              dy2 = by2 + 10
+              dh = dy2 - dy1
 
-        #img_dialog_gray = img_gray[ dy1:dy2, dx1:dx2 ]
-        img_dialog_head_gray = img_gray[ dy1 + 5:dy1+int(RATIO_HEAD_IN_DIALOG*dh), hx2:dx2 ]
-        img_dialog_head_thresh = cv2.threshold(img_dialog_head_gray, 127, 255, cv2.THRESH_BINARY)[1]
-        img_dialog_head_blur = cv2.GaussianBlur(img_dialog_head_thresh,(5,5),0)  #advanced config # blur value
-        img_dialog_head_canny = cv2.Canny(img_dialog_head_blur, 50, 100)  #advanced config # canny value
+          #img_dialog_gray = img_gray[ dy1:dy2, dx1:dx2 ]
+          img_dialog_head_gray = img_gray[ dy1 + 5:dy1+int(RATIO_HEAD_IN_DIALOG*dh), hx2:dx2 ]
+          img_dialog_head_thresh = cv2.threshold(img_dialog_head_gray, 127, 255, cv2.THRESH_BINARY)[1]
+          img_dialog_head_blur = cv2.GaussianBlur(img_dialog_head_thresh,(5,5),0)  #advanced config # blur value
+          img_dialog_head_canny = cv2.Canny(img_dialog_head_blur, 50, 100)  #advanced config # canny value
 
-        templateContours = findContourList(img_dialog_head_canny, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+          templateContours = findContourList(img_dialog_head_canny, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-        if templateContours is not None and len(templateContours) > 0:
+          if templateContours is not None and len(templateContours) > 0:
                 
             hHeight, hWidth = img_dialog_head_canny.shape[:2]
                 
@@ -968,26 +772,24 @@ class Sweeper( QObject ):
                 self.addRect.emit(tm_box,0,0,255,255, 1)
                 self.crack_tm_box_list += (tm_box,)
         
-        if len( self.crack_tm_box_list) > 0:
-            self.crack_image_box = ( dx1, dy1+int(RATIO_HEAD_IN_DIALOG*dh), dx2, by1 - 5)
-            self.addRect.emit( self.crack_image_box, 255,255,0,255, 2)
-            self.crack_button_box = buttonBox
-            
-            print( f'crack tm count: {len(self.crack_tm_box_list)}')
-        
+          if len( self.crack_tm_box_list) > 0:
+              self.crack_image_box = ( dx1, dy1+int(RATIO_HEAD_IN_DIALOG*dh), dx2, by1 - 5)
+              self.addRect.emit( self.crack_image_box, 255,255,0,255, 2)
+              self.crack_button_box = buttonBox
+              self.reportState.emit(f'dialog: check robot with {len(self.crack_tm_box_list)} template(s)', True)
+          return True
       except Exception as e:
-          print(e)
+          self.reportState.emit(f'fail to analyze dialog: {e}', True)
+      return False
 
-    def crackRobotCheck( self, img_src:np.ndarray = None, img_gray:np.ndarray = None, adjustMode:bool = True ):
+    def crackRobotCheck( self, img_src:np.ndarray = None, img_gray:np.ndarray = None, adjustMode:bool = False ):
 
         if self.crack_image_box is None or self.crack_button_box is None or len(self.crack_tm_box_list)<1:
             print( 'crack data unsatisfied')
             return
 
-        if img_src is None:
-            img_src = self.img_src.copy()
-        if img_gray is None:
-            img_gray = cv2.cvtColor(img_src,cv2.COLOR_BGR2GRAY)
+        if img_src is None or img_gray is None:
+            img_src, img_gray = self.captureScreen()
 
         cx1, cy1, cx2, cy2 = self.crack_image_box
         img_to_crack = img_src[cy1:cy2, cx1:cx2]

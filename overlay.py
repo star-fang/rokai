@@ -1,6 +1,6 @@
 from threading import Lock
 from PyQt5.QtWidgets import QMainWindow, QWidget
-from PyQt5.QtCore import QPointF, QRectF, QThreadPool, QWaitCondition, QObject, Qt, pyqtSlot
+from PyQt5.QtCore import QPointF, QRectF, QWaitCondition, QObject, Qt, pyqtSlot
 from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF
 from sweeper import Sweeper, SweeperWorker
 
@@ -36,7 +36,7 @@ class TranslucentWidget(QWidget):
 class Overlay(QMainWindow):
     BORDER_THICKNESS = 12
 
-    def __init__(self, tracker, signId, amuSignals, threadPool: QThreadPool, sweeper: Sweeper, mutex: Lock, parent=None):
+    def __init__(self, tracker, signId, amuSignals, sweeper: Sweeper, mutex: Lock, parent=None):
         QMainWindow.__init__(self, parent, Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
 
         widget = QWidget(self)
@@ -61,7 +61,6 @@ class Overlay(QMainWindow):
 
         self._closeflag:bool = False
 
-        self.threadPool = threadPool
         self.sweeper:Sweeper = sweeper
         self.mutex:Lock = mutex
         self.bbox:tuple = None
@@ -101,9 +100,8 @@ class Overlay(QMainWindow):
         
 
     def requestDetectScreenWork( self ):
-        
         worker = SweeperWorker(self.sweeper, self.getInnerRect(), work=SweeperWorker.WORK_DETECT_SCREEN )
-        self.threadPool.start(worker)
+        self.amuSignals.queuing.emit(worker)
 
     def getInnerRect(self):
         rect = self.geometry().getRect()

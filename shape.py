@@ -10,10 +10,10 @@ class ShapeDetector:
     def __init__(self) -> None:
         pass
 
-    def detect(self, contour):
+    def detect(self, contour, epsilon = 0.04):
         shape = self.SHAPE_UNIDENTIFIED
         peri = cv2.arcLength(contour, True)
-        approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
+        approx = cv2.approxPolyDP(contour, epsilon * peri, True)
 
         len_approx = len(approx)
         if len_approx == 3:

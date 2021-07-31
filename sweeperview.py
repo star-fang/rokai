@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QMainWindow, QProgressBar, QTextEdit, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
-from PyQt5.QtCore import QObject, QThreadPool
+from PyQt5.QtWidgets import QMainWindow, QProgressBar, QSlider, QTextEdit, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt5.QtCore import QObject, Qt
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
 from sweeper import Sweeper, SweeperWorker, SweeperWorkFlow
@@ -7,11 +7,10 @@ from threading import Lock
 from matplotlib import pyplot as plt
 
 class SweeperView(QMainWindow):
-    Button_STATE = 1
     Button_LOCATION = 2
     Button_CRACK = 3
     Button_FIND = 4
-    def __init__(self, signId:int, amuSignals: QObject, threadPool: QThreadPool, sweeper: Sweeper, mutex:Lock, parent=None):
+    def __init__(self, signId:int, amuSignals: QObject, sweeper: Sweeper, mutex:Lock, parent=None):
         QMainWindow.__init__(self, parent)
         self.sweeper = sweeper
         self.initUi()
@@ -21,10 +20,7 @@ class SweeperView(QMainWindow):
         amuSignals.closeSign.connect(self.requestClose)
 
         self._closeflag = False
-
-        self.threadPool = threadPool
         self.signId = signId
-
         self.mutex = mutex
 
         self.connectSweeperSignals()
@@ -104,60 +100,60 @@ class SweeperView(QMainWindow):
         vbox_rr.addLayout(hbox_ra)
         vbox_rr.addLayout(hbox_ro)
         hbox.addLayout(vbox_rr)
-
         layout.addLayout( hbox )
 
-        hbox_test = QHBoxLayout()
-        hbox_test.addWidget(QLabel('테스트: '))
+        hbox_flow = QHBoxLayout()
+        hbox_flow.addWidget(QLabel('Workflow: '))
+        self.flow_slider = QSlider(Qt.Orientation.Horizontal)
+        self.flow_slider.setMinimum(1)
+        self.flow_slider.setMaximum(3)
+        self.flow_slider.setValue(1)
+        self.flow_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.flow_slider.setTickInterval(1)
+        self.flow_btn = QPushButton('start')
+        self.flow_btn.setFixedHeight(30)
+        self.flow_btn.clicked.connect( lambda: self.onFlowButtonClicked( self.flow_slider.value() ) )
+        hbox_flow.addWidget(self.flow_slider)
+        hbox_flow.addWidget(self.flow_btn)
+        layout.addLayout( hbox_flow )
 
-        self.state_btn = QPushButton('상태 체크')
-        self.state_btn.setFixedHeight(30)
-        self.state_btn.clicked.connect( lambda: self.onButtonCLicked(self.Button_STATE))
-        #self.state_btn.setEnabled(False)
-
+        hbox_works = QHBoxLayout()
+        hbox_works.addWidget(QLabel('Works: '))
         self.location_btn = QPushButton('위치 확인')
         self.location_btn.setFixedHeight(30)
-        self.location_btn.clicked.connect( lambda: self.onButtonCLicked(self.Button_LOCATION))
-
+        self.location_btn.clicked.connect( lambda: self.onWorkButtonClicked(self.Button_LOCATION))
         self.find_btn = QPushButton('루비 찾기')
         self.find_btn.setFixedHeight(30)
-        self.find_btn.clicked.connect( lambda: self.onButtonCLicked( self.Button_FIND))
-        #self.find_btn.setEnabled(False)
-
+        self.find_btn.clicked.connect( lambda: self.onWorkButtonClicked( self.Button_FIND))
+        self.find_btn.setEnabled(False)
         self.crack_btn = QPushButton('인증 풀기')
         self.crack_btn.setFixedHeight(30)
-        self.crack_btn.clicked.connect( lambda: self.onButtonCLicked( self.Button_CRACK))
-        #self.crack_btn.setEnabled(False)
-
-        
-        hbox_test.addWidget(self.state_btn)
-        hbox_test.addWidget(self.location_btn)
-        hbox_test.addWidget(self.find_btn)
-        hbox_test.addWidget(self.crack_btn)
-
-        layout.addLayout( hbox_test )
+        self.crack_btn.clicked.connect( lambda: self.onWorkButtonClicked( self.Button_CRACK))
+        self.crack_btn.setEnabled(False)
+        hbox_works.addWidget(self.location_btn)
+        hbox_works.addWidget(self.find_btn)
+        hbox_works.addWidget(self.crack_btn)
+        layout.addLayout( hbox_works )
 
         self.centralWidget().setLayout(layout)
 
-    def requestWorker( self, *args, work: int, flow: int ): # for runnable worker
+    def requestWorker( self, *args, work: int ): # for runnable worker
         if( work > -1 ):
             worker = SweeperWorker( self.sweeper, args, work = work  )
             worker.signals.finished.connect(lambda: self.onWorkFinished(work))
-            self.threadPool.start(worker)
-        elif( flow > -1 ):
-            workflow = SweeperWorkFlow( self.sweeper, args, flow = flow) 
-            workflow.signals.finished.connect(lambda: self.onWorkFlowFinished(flow))
-            self.threadPool.start(workflow)
+            self.amuSignals.queuing.emit(worker)
 
-    def onButtonCLicked( self, which ):
+    def onFlowButtonClicked( self, level ):
+        self.flow_btn.setEnabled(False)
+        workflow = SweeperWorkFlow( self.sweeper, level = level ) 
+        workflow.signals.finished.connect(lambda: self.flow_btn.setEnabled(True))
+        self.amuSignals.queuing.emit(workflow)
+
+    def onWorkButtonClicked( self, which  ):
         work = -1
-        flow = -1
         if which == self.Button_LOCATION:
             self.location_btn.setEnabled(False)
             work = SweeperWorker.WORK_WHERE
-        elif which == self.Button_STATE:
-            self.state_btn.setEnabled(False)
-            flow = SweeperWorkFlow.FLOW_IDF_STATE
         elif which == self.Button_CRACK:
             self.crack_btn.setEnabled(False)
             work = SweeperWorker.WORK_CRACK
@@ -165,31 +161,23 @@ class SweeperView(QMainWindow):
             self.find_btn.setEnabled(False)
             work = SweeperWorker.WORK_RUBY
 
-        self.requestWorker( work = work, flow = flow )
-    
-    def onWorkFlowFinished( self, flow ):
-        if( flow == SweeperWorkFlow.FLOW_IDF_STATE ):
-            print('identifing flow finished')
-            self.state_btn.setEnabled(True)
+        self.requestWorker( work = work )
 
     def onWorkFinished( self, work ):
         if( work == SweeperWorker.WORK_WHERE):
-            print('where am I?')
             self.location_btn.setEnabled(True)
         elif( work == SweeperWorker.WORK_CRACK ):
-            print('crack work finished')
             self.setAngleVal(0)
             self.setRatioVal(0)
             self.crack_btn.setEnabled(True)
         elif( work == SweeperWorker.WORK_RUBY ):
-            print('find ruby work finished')
             self.find_btn.setEnabled(True)
 
     def onStateChanged(self, state):
         if( state == Sweeper.NO_DIALOG ):
             self.crack_btn.setEnabled(False)
             self.find_btn.setEnabled(True)
-        elif( state == Sweeper.DIALOG_ROBOT2 ):
+        elif( state == Sweeper.DIALOG_ROBOT ):
             self.find_btn.setEnabled(False)
             self.crack_btn.setEnabled(True)
         else:

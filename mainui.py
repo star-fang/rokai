@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QPushButton
-from PyQt5.QtCore import QObject, QThreadPool, pyqtSignal
+from PyQt5.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
 from tracker import Tracker
 from sweeper import Sweeper
 from ocr import OcrEngine
@@ -19,7 +19,7 @@ class AmuSignals(QObject):
     hideSign = pyqtSignal(int, bool)
     closeSign = pyqtSignal(int)
     closedSign = pyqtSignal(int)
-    clicked = pyqtSignal(int,int,int)
+    queuing = pyqtSignal(QRunnable)
 
 class RokAMU(QMainWindow):
       
@@ -33,11 +33,8 @@ class RokAMU(QMainWindow):
         self.threadPool = QThreadPool( parent = self )
         self.threadPool.setMaxThreadCount(10)
 
-        ocr = OcrEngine('-l eng+kor --oem 1 --psm3') #default config
-        self.sweeper = Sweeper( ocr ) # default TM_option
+        self.sweeper = Sweeper()
         self.resolutionOption = self.initResolutionOption( systemResolution )
-        
-        #self.initNputHandler()
 
         self.mutex = Lock()
 
@@ -70,12 +67,13 @@ class RokAMU(QMainWindow):
         return super().closeEvent(e)
 
     def createSubWindows( self ):
-        self.sweeperView:SweeperView = SweeperView( AmuSignals.SIGN_SWEEPER, self.signals, self.threadPool, self.sweeper, self.mutex, parent = self)
-        self.rokMiniMap = MiniMap( AmuSignals.SIGN_MINIMAP, self.signals, self.threadPool, self.sweeper, self.mutex, parent = self )
-        self.overlay = Overlay( self.tracker, AmuSignals.SIGN_OVERLAY, self.signals, self.threadPool, self.sweeper, self.mutex , parent = self)
+        self.sweeperView:SweeperView = SweeperView( AmuSignals.SIGN_SWEEPER, self.signals, self.sweeper, self.mutex, parent = self)
+        self.rokMiniMap = MiniMap( AmuSignals.SIGN_MINIMAP, self.signals, self.sweeper, self.mutex, parent = self )
+        self.overlay = Overlay( self.tracker, AmuSignals.SIGN_OVERLAY, self.signals, self.sweeper, self.mutex , parent = self)
 
     def connectSubSignals( self):
         self.signals.closedSign.connect(lambda s:self.onSubWindowClosed(s))
+        self.signals.queuing.connect( lambda r: self.threadPool.start( r ))
 
     def initUI(self):
 
