@@ -1,15 +1,13 @@
-from concurrent import futures
-from PyQt5.QtCore import QMutex, QObject, QRunnable, QWaitCondition, pyqtSignal
 import cv2
-from PIL import ImageGrab
 import numpy as np
 import imutils
 import re
 import pyautogui
+from PIL import ImageGrab
+from concurrent import futures
+from PyQt5.QtCore import QMutex, QObject, QRunnable, QWaitCondition, pyqtSignal
 from pathlib import Path
-from shape import ShapeDetector
-from concurrent.futures import ThreadPoolExecutor
-from ocr import OcrEngine
+from recognizing import OcrEngine, ocr_preprocessing, hsvMasking, template_match, detectShape
 
 TH_BUTTON0 = 160
 TH_BUTTON1= 180
@@ -45,31 +43,6 @@ def selectContours( img_gray: np.ndarray, tVal = 127):
         contours = findContourList(img_thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         return (contours, img_thresh, ratio)
 
-def match(template, resized, method, mThreshold):
-        th, tw = template.shape[:2]
-        match_result = cv2.matchTemplate(resized, template, method)
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match_result)
-        targetExist = False
-        #in case of TM_SQDIFF, matching value is min value
-        #in other case, the opposite is true
-
-        if method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
-                top_left = min_loc
-                match_val = min_val
-                targetExist = bool(match_val < mThreshold)
-        else:
-                top_left = max_loc
-                match_val = max_val
-                targetExist = bool(match_val > mThreshold)
-                
-        #print(str(match_val) + str(targetExist))
-            
-        if( targetExist ):
-                bottom_right = (top_left[0] + tw, top_left[1] + th)
-                return (match_val, top_left, bottom_right)
-        else:
-            return None
-
 def rotateImage( image, angle ):
     center = tuple(np.array(image.shape[1::-1]) / 2)
     rotationMatrix = cv2.getRotationMatrix2D(center, angle, 1.0)
@@ -91,34 +64,31 @@ class SweeperWorkFlow(QRunnable):
             captured = self.sweeper.captureScreen()
             if captured is not None:
                 img_src, img_gray = captured
-                dialogBox = self.sweeper.detectDialog()
-                if dialogBox is None:
-                    with ThreadPoolExecutor() as executor:
+                dialogTuple = self.sweeper.detectDialog(img_src)
+                if dialogTuple is None:
+                    with futures.ThreadPoolExecutor() as executor:
                         whenFuture = executor.submit( self.sweeper.detectNightAndDay, img_gray )
                         coordsFuture = executor.submit( self.sweeper.detectCoordinates, img_src, img_gray )
                         whereFuture =  executor.submit( self.sweeper.checkFieldOrHome, img_gray )
-                        troopsFuture =  executor.submit( self.sweeper.checkCurrentTroops, img_src, img_gray )
-                        
-                        #countTrpsWorker = SweeperWorker(self.sweeper, work=SweeperWorker.WORK_CNT_TROOPS)
-                        #checkRobotWorker = SweeperWorker(self.sweeper, work=SweeperWorker.WORK_CHECK_ROBOT)
 
-                        whenResult = whenFuture.result()
-                        coordsResult = coordsFuture.result()
-                        whereResult = whereFuture.result()
-                        troopsResult = troopsFuture.result()
-                        if self.level > 1:
-                            self.sweeper.findRuby(img_gray)
+                        whenResult:bool = whenFuture.result()
+                        coordsResult:bool = coordsFuture.result()
+                        whereResult:bool = whereFuture.result()
 
-                        #print(f'when:{whenResult}, where:{whereResult}, coords:{coordsResult}')
+
+                        if whenResult and whereResult:
+                            if self.level > 1 and self.sweeper.determineFieldWork(coordsResult):
+                                self.sweeper.findRuby(img_gray)
+
                 else:
-                    self.sweeper.identifyDialog( dialogBox, img_src, img_gray )
+                    self.sweeper.identifyDialog( dialogTuple, img_src, img_gray )
 
         self.signals.finished.emit()
 
     def __init__(self, sweeper, *args, flow:int = 0, level:int=1):
         QRunnable.__init__(self)
         self.flow = flow
-        self.sweeper = sweeper
+        self.sweeper:Sweeper = sweeper
         self.level = level
         self.signals = SweeperWorkFlowSignals()
         self.args = args
@@ -218,26 +188,24 @@ class Sweeper( QObject ):
 
     def __init__(self, methodName='cv2.TM_CCOEFF_NORMED', parent = None):
         QObject.__init__(self, parent)
-        
-        if methodName is not None:
-            self.setMethodName(methodName)
 
         self.bbox:tuple = None
         self.loadTmImages()
-        
-
         self.crack_tm_box_list = list()
-        
         self.initStateFlags()
         self.initWorkFlowData()
 
         self.initImageRecognizingModules()
 
+    def initImageRecognizingModules(self, tmMethodName:str='cv2.TM_CCOEFF_NORMED' ):
 
-    def initImageRecognizingModules(self):
+        try:
+            self.tmMethod = eval(tmMethodName)
+        except Exception as e:
+            self.tmMethod = cv2.TM_CCOEFF_NORMED
+            print( f'Exception: {e}')
 
         self.ocr = OcrEngine('-l eng+kor --oem 1 --psm3') #default config
-        self.shapeDetector = ShapeDetector()
         #self.mnist = MnistCnnModel()
         #self.mnist.loadingSignal.connect(lambda name:print('loading %s...' % name))
         #self.mnist.loadCompleteSignal.connect(lambda name, t:print('%s loaded in %.3fs' % (name, t)))
@@ -255,6 +223,7 @@ class Sweeper( QObject ):
         self.crack_tm_box_list.clear()
         self.crack_image_box:tuple = None
         self.crack_button_box:tuple = None
+        self.field_button_box:tuple = None
 
         self.field_home_button_box:tuple = None
         self.ruby_button_box:tuple = None
@@ -275,17 +244,17 @@ class Sweeper( QObject ):
                                                      TH_BUTTON1, 255, cv2.THRESH_BINARY)[1]
         self.template_robot_check = cv2.threshold(cv2.imread(f'{assets_dir}/btn_robot.png',cv2.IMREAD_GRAYSCALE), 
                                                      TH_BUTTON1, 255, cv2.THRESH_BINARY)[1]
-        self.template_expand_troops = cv2.threshold(cv2.imread(f'{assets_dir}/btn_expand_troops.png',cv2.IMREAD_GRAYSCALE), 
-                                                     TH_BUTTON0, 255, cv2.THRESH_BINARY)[1]
         self.template_head_robot = cv2.threshold(cv2.imread(f'{assets_dir}/head_robot.png',cv2.IMREAD_GRAYSCALE), 
                                                      TH_HEADLINE, 255, cv2.THRESH_BINARY)[1]
 
-    def setMethodName(self, name):
-        try:
-            self.methodName = name
-            self.method = eval(name)
-        except Exception as e:
-            print( f'Exception: {e}')
+    def determineFieldWork(self, coordResult:bool):
+        if self.state_where == self.WHERE_FIELD and coordResult:
+            return True
+        elif self.field_button_box is not None:
+            x1, y1, x2, y2 = self.field_button_box
+            pyautogui.moveTo( self.bbox[0] + (x1+x2)//2, self.bbox[1]+ (y1+y2)//2, 1 )
+            pyautogui.click()
+            return False
 
     def checkFieldOrHome(self, img_gray:np.ndarray = None):
         if img_gray is None:
@@ -317,8 +286,9 @@ class Sweeper( QObject ):
                 rBottomRight = (int(r*bottom_right[0]),int(r*bottom_right[1]))
                 buttonBox = rTopLeft + rBottomRight
                 x1,y1,x2,y2 = buttonBox
-                self.addRect.emit( (pX+x1, pY+y1, pX+x2, pY+y2),
-                                    255,0,0,255, 4  )
+                self.field_button_box = (pX+x1, pY+y1, pX+x2, pY+y2)
+                self.addRect.emit( self.field_button_box,
+                                    255,0,0,100, 4  )
                 return True
 
             if match_result is None:
@@ -328,42 +298,6 @@ class Sweeper( QObject ):
             self.reportState.emit(f'where: {e}',True)
         self.state_where = self.WHERE_NONE
         return False
-
-    def checkCurrentTroops( self, img_src:np.ndarray=None, img_gray:np.ndarray=None):
-        if img_src is None or img_gray is None:
-            img_src, img_gray = self.captureScreen()
-        h, w = img_gray.shape[:2]
-        ix = int(0.9*w)
-        iy = int(0.1*h)
-        img_right_bar = img_gray[ iy:h-iy, ix: w ]
-        img_right_bar_thresh = cv2.threshold(img_right_bar, TH_BUTTON1, 255, cv2.THRESH_BINARY)[1]
-
-        match_result = self.multiScaleMatch(self.template_expand_troops, img_right_bar_thresh)
-        if match_result is not None:
-            matchVal,top_left,bottom_right,r = match_result
-            rTopLeft = (int(r*top_left[0]),int(r*top_left[1]))
-            rBottomRight = (int(r*bottom_right[0]),int(r*bottom_right[1]))
-            localExpandButtonBox = rTopLeft + rBottomRight
-            x1,y1,x2,y2 = localExpandButtonBox
-            buttonWidth = x2 - x1
-            tmpBox = (ix+x2, iy+y1, w, iy+y2)
-            tx1, ty1, tx2, ty2 = tmpBox
-            tw = tx2 - tx1
-            th = ty2 - ty1
-            if tw > 3*buttonWidth:
-                try:
-                    tx1 += buttonWidth // 2
-                    tx2 -= buttonWidth
-                    ty2 = int( ty2 - 0.15*th )
-                    globalTroopsCountBox = (tx1, ty1, tx2 , ty2)
-                    self.addRect.emit( globalTroopsCountBox,255,0,255,255, 2 )
-                    cnt_color = self.ocr.hsvMasking( img_src[ty1:ty2,tx1:tx2], interval = 20)
-                    #cnt_gray, r = self.ocr.preprocessing(src_gray = img_gray[ty1:ty2,tx1:tx2], height= 32, adjMode=False, stackAxis=1)
-                    if cnt_color is not None:
-                        troops_txt = self.ocr.read(cnt_color,config='--oem 1 --psm 13')
-                        print( f't count: {troops_txt}')
-                except Exception as e:
-                    print( f'exception while count troops:{e}')
             
     def detectCoordinates(self, img_src:np.ndarray=None, img_gray:np.ndarray = None):
         if img_src is None or img_gray is None:
@@ -387,7 +321,7 @@ class Sweeper( QObject ):
             coords_part_gray = img_topLeft_gray[cbox[1]:cbox[3], cbox[0]:cbox[2]]
             self.addRect.emit( cbox,255,0,255, 200, 2  )
             
-            dst, r = self.ocr.preprocessing(src_gray=coords_part_gray, height=64, adjMode=False)
+            dst, r = ocr_preprocessing(src_gray=coords_part_gray, height=64, adjMode=False)
 
             if dst is  None:
                 self.reportState.emit('location: fail to preprocess', True)
@@ -408,10 +342,11 @@ class Sweeper( QObject ):
                     digits += ( int(split[i]), )
                 self.changeLocation.emit(digits)
                 self.reportState.emit( f'location: #{digits[0]} x{digits[1]} y{digits[2]}', True )
+                return True
         except Exception as e:
             self.reportState.emit(f'location: error->{e}', True)
+        return False
             
-
     def captureScreen( self ):
         try:
             self.changeScreen.emit( np.zeros( (self.bbox[3], self.bbox[2]) ) )
@@ -435,14 +370,20 @@ class Sweeper( QObject ):
             print( f'exception while capture: {e}')
         return None
 
-    def identifyDialog(self, bbox, img_src:np.ndarray=None, img_gray:np.ndarray=None):
+    def identifyDialog(self, dialogInfo:tuple, img_src:np.ndarray=None, img_gray:np.ndarray=None):
         if img_src is None or img_gray is None:
             img_src, img_gray = self.captureScreen()
+
+        bbox = dialogInfo[1]
+        isWhiteDialog:bool = dialogInfo[0] == 'white'
+
         x, y, x2, y2 = bbox
         w = x2 - x
         h = y2 - y
 
-        def robotMatch( x,y,w,h,img_gray):
+        def robotMatch( x,y,w,h,img_gray, useless:bool=False):
+            if useless:
+                return None
             dialog_head = img_gray[y:y+int(h*RATIO_HEAD_IN_DIALOG),x:x+w]
             
             match_result = self.multiScaleMatch(self.template_head_robot, dialog_head, min=0.01, max=4.0, counts = 40, matchVal=0.6 )
@@ -458,7 +399,9 @@ class Sweeper( QObject ):
                 return globalHeadlineBox
             return None
 
-        def rubyTemplateMatch( x, y, w, h, img_gray ):
+        def rubyTemplateMatch( x, y, w, h, img_gray, useless:bool=False ):
+            if useless:
+                return False
             img_dialog_left = img_gray[y:y+h,x:x+w//2]
             img_dialog_th = cv2.threshold(img_dialog_left, TH_RUBY_IN_DIALOG, 255, cv2.THRESH_BINARY)[1]
             
@@ -477,117 +420,115 @@ class Sweeper( QObject ):
         def findButtons( x, y, w, h, img_src):
             px = x
             py = y + int(h*0.5)
-        
+            fitContours = list()
+
             try:
                 dialog_lower = img_src[py:y + h,px:x+w]
                 hsv = cv2.cvtColor(dialog_lower, cv2.COLOR_BGR2HSV)
 
-                fitContours = list()
-                lower_blue = np.array([0,150,0])
-                uppper_blue = np.array([40,255,255])
-                mask_blue = cv2.inRange(hsv, lower_blue, uppper_blue)
+                for mask_idf, mask in {'blue': hsvMasking( hsv, [0,150,0], [40,255,255] ), \
+                                       'red': hsvMasking( hsv, [110,150,0], [130,255,255] ),
+                                       'yellow': hsvMasking( hsv, [90,150,0], [120,255,255]) }.items():
+                    contours = findContourList(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-                #def changeHsv( k ):
-                #    hmin = k
-                #    hmax = k + 40
-                #    lower_th = np.array([hmin,150,0])
-                #    uppper_th = np.array([hmax,255,255])
-                #    mask = cv2.inRange(hsv, lower_th, uppper_th)
-                #    cv2.imshow('ddd', mask)
-                
-                #changeHsv( 0 )
-                #cv2.createTrackbar('h', 'ddd', 0, 140, lambda k: changeHsv( k ))
-                #cv2.waitKey(0)
-
-                lower_red = np.array([110,150,0])
-                uppper_red = np.array([130,255,255])
-                mask_red = cv2.inRange(hsv, lower_red, uppper_red)
-
-                mask = cv2.bitwise_or( mask_blue, mask_red )
-
-                
-
-                contours = findContourList(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-            
-                if len( contours ) > 0:
-                    mask_rgb = cv2.bitwise_and( dialog_lower, dialog_lower, mask = mask )
-                    mask_rgb = cv2.cvtColor(mask_rgb, cv2.COLOR_BGR2RGB)
-                    for i in  range( 0, len( contours )):
-                        contour = contours[i]
-                        cw,ch = cv2.boundingRect(contour)[2:]
-                        if cw < w and cw * 5 > w and ch * 20 > h and ch < h:
-                            shape = self.shapeDetector.detect(contour, 0.02)
-                            print( f'button shape:{shape}')
-                            if shape == 2:
-                                cv2.drawContours(mask_rgb, [contour],0,(255,0,0),3)
-                            if shape == 3:
-                                cv2.drawContours(mask_rgb, [contour],0,(0,255,0),3)
-                            else:
-                                cv2.drawContours(mask_rgb, [contour],0,(0,0,255),3)
-                            if shape in [ShapeDetector.SHAPE_RECTANGLE, ShapeDetector.SHAPE_SQUARE]:
-                                fitContours += (contour,)
-                    self.changeScreen.emit(mask_rgb)
+                    if len( contours ) > 0:
+                        for contour in contours:
+                            cw,ch = cv2.boundingRect(contour)[2:]
+                            if cw < w and cw * 5 > w and ch * 20 > h and ch < h:
+                                verticesCnt = detectShape(contour=contour, epsilon=0.02)[0]
+                                #print( f'button shape:{verticesCnt}')
+                                if verticesCnt == 4:
+                                    fitContours += ( (mask_idf,contour),)
             except Exception as e:
                 print(f'exception while find buttons:{e}')
                             
-                #cv2.imshow('aaa', img_rgb)
-                #cv2.waitKey()dddd
             return (fitContours, px, py)
                     
-        with ThreadPoolExecutor() as executor:
-            rubyFuture = executor.submit( rubyTemplateMatch, x,y, w, h, img_gray)
+        with futures.ThreadPoolExecutor() as executor:
+            
             buttonFuture = executor.submit( findButtons, x,y, w, h, img_src)
-            robotFuture = executor.submit(robotMatch, x,y,w,h, img_gray)
+            rubyFuture = executor.submit( rubyTemplateMatch, x,y, w, h, img_gray, useless = not isWhiteDialog)
+            robotFuture = executor.submit(robotMatch, x,y,w,h, img_gray, useless =  not isWhiteDialog)
 
             rubyResult = rubyFuture.result()
             buttonResult = buttonFuture.result()
             robotResult = robotFuture.result()
 
             buttons, buttonPx, buttonPy = buttonResult
-            btnCount = len(buttons)
+            btnCount = len(buttons) # (idf,btn), ...
 
-            buttonBoxes = list()
+            buttonBoxes = dict()
             if btnCount > 0:
-                btns_sorted = sorted( buttons, key=lambda b: cv2.boundingRect(b)[1], reverse=True)
-                lowest_rect =  cv2.boundingRect(btns_sorted[0])
-                for i in range( 0, btnCount ):
-                    button = buttons[i]
+                #print( f'btnCount: {btnCount}')
+                btnCount = 0
+                btns_sorted = sorted( buttons, key=lambda b: cv2.boundingRect(b[1])[1], reverse=True)
+                lowest_rect =  cv2.boundingRect(btns_sorted[0][1])
+                for idf, button in buttons:
                     bx, by, bw, bh = cv2.boundingRect(button)
-
                     if by + bh > lowest_rect[1]:
                         btnBox = ( buttonPx + bx, buttonPy + by, buttonPx + bx + bw,  buttonPy +by + bh)
-                        self.addRect.emit( btnBox, 255,0,0,200, 5)
-                        buttonBoxes += (btnBox,)
-                btnCount = len( buttonBoxes )
+                        self.addRect.emit( btnBox, 255,0,0,200, 5)    
+                        if idf not in buttonBoxes:
+                            buttonBoxes[idf] = list()
+                        buttonBoxes[idf] += (btnBox,)
+                        btnCount += 1
 
+            
+            if robotResult is not None and btnCount == 1 and 'blue' in buttonBoxes:
+                if self.analyzeRobot2Dialog( img_gray, bbox, buttonBoxes['blue'][0], robotResult):
+                    self.changeState.emit(self.DIALOG_ROBOT)
+                    return
             if rubyResult:
                 self.changeState.emit(self.DIALOG_RUBY)
                 self.reportState.emit( f'dialog: ruby with {btnCount} button(s)', True)
-            elif robotResult is not None:
-                if self.analyzeRobot2Dialog( img_gray, bbox, buttonBoxes, robotResult):
-                    self.changeState.emit(self.DIALOG_ROBOT) 
             else:
                 self.changeState.emit(self.DIALOG_UNKNOWN)
                 self.reportState.emit(f'dialog: unknown with {btnCount} button(s)', True)
+            
+            if btnCount == 1 and 'blue' in buttonBoxes:
+                bx1, by1, bx2, by2 = buttonBoxes['blue'][0]
+                pyautogui.moveTo( self.bbox[0] + (bx1+bx2)//2, self.bbox[1]+ (by1+by2)//2, 1 )
+                pyautogui.click()
+            elif not isWhiteDialog and  btnCount == 2 and 'blue' in buttonBoxes and 'yellow' in buttonBoxes:
+                bx1, by1, bx2, by2 = buttonBoxes['yellow'][0]
+                pyautogui.moveTo( self.bbox[0] + (bx1+bx2)//2, self.bbox[1]+ (by1+by2)//2, 1 )
+                pyautogui.click()
+            else:
+                pyautogui.moveTo( self.bbox[0] + bbox[0] - 10, self.bbox[1]+ bbox[3] - 10, 1 )
+                pyautogui.click()
 
-    def detectDialog(self, img_gray:np.ndarray = None):
-        if img_gray is None:
-            img_gray = self.captureScreen()[1]
+    def detectDialog(self, img_src:np.ndarray = None):
+        if img_src is None:
+            img_src = self.captureScreen()[1]
+        hsv = cv2.cvtColor( img_src, cv2.COLOR_BGR2HSV )
+        ih,iw = img_src.shape[:2]
+        whiteDialogMask = hsvMasking( hsv, [0,0,190], [120,90,255], adjMode=False )
+        contours = findContourList(whiteDialogMask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        if len( contours ) > 0:
+            contour = max( contours, key = cv2.contourArea)
+            cx, cy, cw,ch = cv2.boundingRect(contour)
+            if cw < iw and cw * 10 > iw and ch * 5 > ih and ch < ih:
+                verticesCnt, ar = detectShape(contour=contour)
+                if verticesCnt == 4:
+                    bbox = (cx, cy, cx+cw, cy+ch)
+                    self.addRect.emit( bbox, 0,0,255,255, 5 )
+                    return ('white',bbox)
 
-        for th in [60, 127, 160]:
-            contourExist, bbox, detected = self.selectBigRectContour(img_gray, th, minRate=0.03, maxRate=0.6, max = True)
-            if contourExist:
-                print(f'dialog th: {th}')
-                break
-        if contourExist:
-            self.changeScreen.emit( detected )
-            self.addRect.emit( bbox, 0,0,255,255, 5 )
-            return bbox
-        else:
-            self.state_dialog = self.NO_DIALOG
-            self.changeScreen.emit( img_gray )
-            self.changeState.emit(self.NO_DIALOG)
-            self.reportState.emit('dialog: none', True)
+        navyDialogMask = hsvMasking( hsv, [0,70,60], [25,255,180], adjMode=False )
+        contours = findContourList(navyDialogMask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        if len( contours ) > 0:
+            contour = max( contours, key = cv2.contourArea)
+            cx, cy, cw,ch = cv2.boundingRect(contour)
+            if cw < iw and cw > iw * 0.6 and ch > ih * 0.7 and ch < ih:
+                verticesCnt, ar = detectShape(contour=contour)
+                print( f'dialog shape:{verticesCnt}, ar:{ar}')
+                if verticesCnt == 4:
+                    bbox = (cx, cy, cx+cw, cy+ch)
+                    self.addRect.emit( bbox, 0,0,255,255, 5 )
+                    return ('navy',bbox)
+        self.state_dialog = self.NO_DIALOG
+        self.changeState.emit(self.NO_DIALOG)  
+        self.reportState.emit('dialog: none', True)
         return None
 
     def selectBigRectContour( self, img_gray: np.ndarray, tVal, minRate=0.7, maxRate = 1.0, max = False ):
@@ -599,12 +540,12 @@ class Sweeper( QObject ):
             fitContour = None
             for i in range( 0, contoursCount):
                 contour = contours[i]
-                shape = self.shapeDetector.detect(contour)
+                verticesCnt = detectShape(contour=contour)[0]
                 cw,ch = cv2.boundingRect(contour)[2:]
                 areaCont = cw * ch
                 areaImg = iw * ih
                 if areaCont >= minRate * areaImg and areaCont <= maxRate * areaImg:
-                    if  shape == ShapeDetector.SHAPE_RECTANGLE or shape == ShapeDetector.SHAPE_SQUARE:
+                    if  verticesCnt == 4:
                         fitContour = contour
                         if max:
                             break
@@ -712,24 +653,27 @@ class Sweeper( QObject ):
 
             cv2.rectangle(matched, rTopLeft,rBottomRight, (0,0,255),5)
             self.changeScreen.emit(matched)
-            rubyBox = rTopLeft + rBottomRight
+            rBox = rTopLeft + rBottomRight
             self.reportState.emit( f'ruby match value: {matchVal}', True )
-            self.addRect.emit( rubyBox, 255,0,0,255, 5 )
-            return rubyBox
+            self.addRect.emit( rBox, 255,0,0,255, 5 )
+            rx1, ry1, rx2, ry2 = rBox
+            pyautogui.moveTo( self.bbox[0] + (rx1+rx2)//2, self.bbox[1] + (ry1+ry2)//2, 1.5 )
+            pyautogui.click()
+            return True
+            #return rubyBox
         
         self.changeScreen.emit( img_gray )
         
-        return None
+        return False
 
-    def analyzeRobot2Dialog( self, img_gray:np.ndarray, dialogBox:tuple, buttonBoxes:list, headlineBox:tuple):
+    def analyzeRobot2Dialog( self, img_gray:np.ndarray, dialogBox:tuple, blueButtonBox:tuple, headlineBox:tuple):
 
       try:
-          buttonBox = buttonBoxes.pop()
           dx1, dy1, dx2, dy2 = dialogBox
           dw = dx2 - dx1
           dh = dy2 - dy1
         
-          bx1, by1, bx2,by2 = buttonBox
+          bx1, by1, bx2,by2 = blueButtonBox
           hx2 = headlineBox[2]
 
           if bx2 + 5 < dx2:
@@ -775,7 +719,7 @@ class Sweeper( QObject ):
           if len( self.crack_tm_box_list) > 0:
               self.crack_image_box = ( dx1, dy1+int(RATIO_HEAD_IN_DIALOG*dh), dx2, by1 - 5)
               self.addRect.emit( self.crack_image_box, 255,255,0,255, 2)
-              self.crack_button_box = buttonBox
+              self.crack_button_box = blueButtonBox
               self.reportState.emit(f'dialog: check robot with {len(self.crack_tm_box_list)} template(s)', True)
           return True
       except Exception as e:
@@ -859,7 +803,7 @@ class Sweeper( QObject ):
 
         tmBoxCount = len(self.crack_tm_box_list)
         
-        with ThreadPoolExecutor(max_workers=tmBoxCount) as executor:
+        with futures.ThreadPoolExecutor(max_workers=tmBoxCount) as executor:
             matchBoxes = dict()
             futuresGroup = {executor.submit( matchCrackTemplate, int(i+1), img_src[
                 self.crack_tm_box_list[i][1]:self.crack_tm_box_list[i][3], 
@@ -882,15 +826,8 @@ class Sweeper( QObject ):
             bx1, by1, bx2, by2 = self.crack_button_box
             pyautogui.moveTo( self.bbox[0] + (bx1+bx2)//2, self.bbox[1]+ (by1+by2)//2, 1 )
             pyautogui.click()
-
-
-
-            
-
-            
-
-                                    
-    def multiScaleMatch( self, template, img, min=0.01, max=4.0, counts=40, matchVal=0.65 ):
+                               
+    def multiScaleMatch( self, template:np.ndarray, img:np.ndarray, min:float=0.01, max:float=4.0, counts:int=40, matchVal:float=0.65 ):
         th, tw = template.shape[:2]
         
         i = 0
@@ -901,7 +838,7 @@ class Sweeper( QObject ):
             self.changeTmRatio.emit( ratioProgress )
             if resized.shape[0] < th or resized.shape[1] < tw:
                 break
-            match_result = match(template,resized,self.method, matchVal)
+            match_result = template_match(template,resized,self.tmMethod, matchVal)
             if match_result is not None:
                 #print('template found in ' + str(i+1) + 'try(s) ratio: ' +  str(1/r) )
                 return match_result + (r,)

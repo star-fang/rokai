@@ -28,44 +28,91 @@ engine mode (--oem) options
 3	By Default, based on what is currently available
 '''
 
-class OcrEngine:
-    def __init__(self, config):
-        self.config = config
-    
-    '''def preprocessing(self, img_src, showProcess=False, blockSize=11, C=2):
-        img_gray = cv2.cvtColor(img_src,cv2.COLOR_BGR2GRAY)
-        noiseRemoved = cv2.fastNlMeansDenoising(img_gray,None,10,7,15)
-        img_th = cv2.adaptiveThreshold(noiseRemoved, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,blockSize=blockSize,C=C)
-        if showProcess:
-            cv2.imshow('pre-gray', img_gray)
-            cv2.imshow('pre-nr', noiseRemoved)
-            cv2.imshow('pre-th', img_th)
-            cv2.waitKey()
-        return noiseRemoved, img_th'''
-    
-    def removeBackground(self, img_gray, kernel1 = 3, kernel2 = 7): # ksize must must be odd
+def detectShape(contour, epsilon = 0.04):
+        peri = cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, epsilon * peri, True)
+
+        len_approx = len(approx)
+        w, h = cv2.boundingRect(approx)[2:]
+        ar = w / float(h)
+
+        return len_approx, ar
+
+def template_match(template:np.ndarray, resized:np.ndarray, method:int, mThreshold:int):
+        th, tw = template.shape[:2]
+        match_result = cv2.matchTemplate(resized, template, method)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match_result)
+        targetExist = False
+        #in case of TM_SQDIFF, matching value is min value
+        #in other case, the opposite is true
+
+        if method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
+                top_left = min_loc
+                match_val = min_val
+                targetExist = bool(match_val < mThreshold)
+        else:
+                top_left = max_loc
+                match_val = max_val
+                targetExist = bool(match_val > mThreshold)
+                
+        #print(str(match_val) + str(targetExist))
+            
+        if( targetExist ):
+                bottom_right = (top_left[0] + tw, top_left[1] + th)
+                return (match_val, top_left, bottom_right)
+        else:
+            return None
+
+def hsvMasking( src_hsv:np.ndarray, hsvLower:list=[0,0,0], hsvUpper:list=[180,255,255], adjMode = False ):
+        def changeHsv(k,ki:int = -1, adj:bool = False):
+            if ki == 0:
+                changeHsv.hl = k
+            elif ki == 1:
+                changeHsv.hu = k
+            elif ki == 2:
+                changeHsv.sl = k
+            elif ki == 3:
+                changeHsv.su = k
+            elif ki == 4:
+                changeHsv.vl = k
+            elif ki == 5:
+                changeHsv.vu = k
+
+            lower_th = np.array([changeHsv.hl,changeHsv.sl,changeHsv.vl])
+            uppper_th = np.array([changeHsv.hu,changeHsv.su,changeHsv.vu])
+
+            mask = cv2.inRange(src_hsv, lower_th, uppper_th)
+            
+            if adj:
+                resized = imutils.resize(mask,height=200)
+                cv2.imshow('hsv',  resized)
+            changeHsv.dst = mask
+
+        changeHsv.hl = hsvLower[0]
+        changeHsv.sl = hsvLower[1]
+        changeHsv.vl = hsvLower[2]
+        changeHsv.hu = hsvUpper[0]
+        changeHsv.su = hsvUpper[1]
+        changeHsv.vu = hsvUpper[2]
+        changeHsv.dst = None
+        changeHsv(0, adj=adjMode)
+        if adjMode:
+            cv2.createTrackbar('h_l', 'hsv', changeHsv.hl, 180, lambda k: changeHsv( k, ki=0, adj=True ))
+            cv2.createTrackbar('h_u', 'hsv', changeHsv.hu, 180, lambda k: changeHsv( k, ki=1, adj=True ))
+            cv2.createTrackbar('s_l', 'hsv', changeHsv.sl, 255, lambda k: changeHsv( k, ki=2, adj=True ))
+            cv2.createTrackbar('s_u', 'hsv', changeHsv.su, 255, lambda k: changeHsv( k, ki=3, adj=True ))
+            cv2.createTrackbar('v_l', 'hsv', changeHsv.vl, 255, lambda k: changeHsv( k, ki=4, adj=True ))
+            cv2.createTrackbar('v_u', 'hsv', changeHsv.vu, 255, lambda k: changeHsv( k, ki=5, adj=True))
+        cv2.waitKey(0)
+        return changeHsv.dst
+
+def removeBackground(img_gray, kernel1 = 3, kernel2 = 7): # ksize must must be odd
         mb1 = cv2.medianBlur(img_gray, kernel1)
         mb2 = cv2.medianBlur(img_gray,kernel2)
         d = np.ma.divide(mb1,mb2).data
         return np.uint8(255*d/d.max())
 
-    def hsvMasking( self, src_bgr:np.ndarray, interval:int = 40 ):
-        hsv = cv2.cvtColor(src_bgr, cv2.COLOR_BGR2HSV )
-        def changeHsv():
-            lower_th = np.array([0,0,0])
-            uppper_th = np.array([0,0,255])
-            mask = cv2.inRange(hsv, lower_th, uppper_th)
-            dst = cv2.bitwise_and( src_bgr, src_bgr, mask = mask )
-            cv2.imshow('hsv', mask)
-            changeHsv.dst = dst
-        
-        changeHsv.dst = None
-        changeHsv()
-        #cv2.createTrackbar('h', 'ddd', 0, 180-interval, lambda k: changeHsv( k ))
-        cv2.waitKey(0)
-        return changeHsv.dst
-        
-    def preprocessing( self, src_gray:np.ndarray, height = 64, stackAxis=0, inv = True, adjMode:bool =False, **kwargs  ):
+def ocr_preprocessing( src_gray:np.ndarray, height = 64, stackAxis=0, inv = True, adjMode:bool=False, **kwargs  ):
         try:
             if inv:
                 src_gray = cv2.bitwise_not(src_gray)
@@ -88,7 +135,7 @@ class OcrEngine:
                 rk2 = 2 * onChange_ksize.rkf2 + 1 
                 ek = 2 * onChange_ksize.ekf + 1
 
-                coord_removed_bg = self.removeBackground(resized, kernel1=rk1, kernel2=rk2)
+                coord_removed_bg = removeBackground(resized, kernel1=rk1, kernel2=rk2)
                 blur = cv2.GaussianBlur( coord_removed_bg, (bk,bk), 0 )          
                 coord_thresh_otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)[1]
                 #coord_thresh_gauss = cv2.adaptiveThreshold(blur,255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
@@ -135,7 +182,21 @@ class OcrEngine:
         except Exception as e:
             print( 'orc preprocess fail: %s' % e )
         return None, 0
-        
+
+class OcrEngine:
+    def __init__(self, config):
+        self.config = config
+    
+    '''def preprocessing(self, img_src, showProcess=False, blockSize=11, C=2):
+        img_gray = cv2.cvtColor(img_src,cv2.COLOR_BGR2GRAY)
+        noiseRemoved = cv2.fastNlMeansDenoising(img_gray,None,10,7,15)
+        img_th = cv2.adaptiveThreshold(noiseRemoved, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,blockSize=blockSize,C=C)
+        if showProcess:
+            cv2.imshow('pre-gray', img_gray)
+            cv2.imshow('pre-nr', noiseRemoved)
+            cv2.imshow('pre-th', img_th)
+            cv2.waitKey()
+        return noiseRemoved, img_th'''
 
     def readHtml(self,im):
         config = '--oem 1 --psm 3'

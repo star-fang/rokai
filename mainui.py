@@ -2,11 +2,9 @@ from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QPushButton
 from PyQt5.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
 from tracker import Tracker
 from sweeper import Sweeper
-from ocr import OcrEngine
 from minimap import MiniMap
 from overlay import Overlay
 from threading import Lock
-from matplotlib import pyplot as plt
 from sweeperview import SweeperView
 
 class AmuSignals(QObject):
