@@ -1,0 +1,1148 @@
+[2021-08-04 00:05:06,021] (sweeper:205) sweeper:DEBUG - exception while load tmMethod
+Stack (most recent call last):
+  File "c:\Users\clavi\PycharmProjects\rokAi\rokAiPy\main.py", line 16, in <module>
+    rokAiMainUi = RokAMU(systemResolution)
+  File "c:\Users\clavi\PycharmProjects\rokAi\rokAiPy\mainui.py", line 15, in __init__
+    self.sweeper = Sweeper()
+  File "c:\Users\clavi\PycharmProjects\rokAi\rokAiPy\sweeper.py", line 196, in __init__
+    self.initImageRecognizingModules()
+  File "c:\Users\clavi\PycharmProjects\rokAi\rokAiPy\sweeper.py", line 205, in initImageRecognizingModules
+    self.logger.debug('exception while load tmMethod', stack_info=True)
+[2021-08-04 00:09:12,536] (sweeper:64) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 00:09:13,572] (sweeper:715) sweeper:INFO - dialog: check robot with 3 template(s)
+[2021-08-04 00:09:13,581] (sweeper:88) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 00:09:15,229] (sweeper:724) sweeper:WARNING - crack data unsatisfied
+[2021-08-04 00:57:32,934] (sweeper:190) sweeper:INFO - program launched
+[2021-08-04 00:57:52,761] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 00:58:02,442] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 00:58:04,707] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 00:58:07,129] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 00:58:07,244] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 00:58:07,420] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.67)
+[2021-08-04 00:58:07,771] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 00:58:10,493] (sweeper:351) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 00:58:10,537] (sweeper:357) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 00:58:10,538] (sweeper:363) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 00:58:10,540] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 00:58:40,082] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 00:59:06,961] (sweeper:190) sweeper:INFO - program launched
+[2021-08-04 00:59:07,796] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 00:59:11,403] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 00:59:13,304] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 00:59:19,170] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 00:59:19,237] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 00:59:19,248] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.77)
+[2021-08-04 00:59:19,605] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 00:59:20,088] (sweeper:351) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 00:59:20,089] (sweeper:357) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 00:59:20,089] (sweeper:363) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 00:59:20,091] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:01:10,162] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 01:01:55,536] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 01:04:22,541] (sweeper:190) sweeper:INFO - program launched
+[2021-08-04 01:04:23,435] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 01:04:25,818] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:04:29,146] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:04:30,094] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:04:30,155] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:04:30,164] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.67)
+[2021-08-04 01:04:30,508] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:04:31,048] (sweeper:351) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 01:04:31,049] (sweeper:357) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 01:04:31,050] (sweeper:363) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 01:04:31,051] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:04:38,330] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:04:38,402] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:04:38,407] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.31)
+[2021-08-04 01:04:38,772] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:04:38,994] (sweeper:351) sweeper:DEBUG - ocr result: ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:04:39,033] (sweeper:357) sweeper:DEBUG - location(ocr): ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:04:39,034] (sweeper:363) sweeper:INFO - location: #1947 x495 y616
+[2021-08-04 01:04:39,088] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:04:41,156] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:04:41,215] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:04:41,221] (sweeper:571) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:04:41,591] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:04:42,192] (sweeper:363) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:04:42,194] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:04:52,282] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:04:52,345] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:04:52,349] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.31)
+[2021-08-04 01:04:52,707] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:04:53,313] (sweeper:351) sweeper:DEBUG - ocr result: ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:04:53,314] (sweeper:357) sweeper:DEBUG - location(ocr): ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:04:53,314] (sweeper:363) sweeper:INFO - location: #1947 x495 y616
+[2021-08-04 01:04:53,316] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:05:06,344] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:05:06,404] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:05:06,408] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.67)
+[2021-08-04 01:05:06,767] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:05:07,118] (sweeper:351) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 01:05:07,119] (sweeper:357) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 01:05:07,119] (sweeper:363) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 01:05:07,121] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:05:19,863] (sweeper:55) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 01:05:19,918] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:05:19,926] (sweeper:571) sweeper:INFO - when: night (cr: 0.08)
+[2021-08-04 01:05:20,252] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:05:20,623] (sweeper:351) sweeper:DEBUG - ocr result: 81947 X:575Y:715 Q
+[2021-08-04 01:05:20,624] (sweeper:357) sweeper:DEBUG - location(ocr): 81947 X:575Y:715 Q
+[2021-08-04 01:05:20,624] (sweeper:363) sweeper:INFO - location: #81947 x575 y715
+[2021-08-04 01:05:23,568] (sweeper:668) sweeper:INFO - ruby match value: 0.677338182926178
+[2021-08-04 01:05:25,663] (sweeper:81) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 01:05:42,131] (sweeper:55) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 01:05:42,194] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:05:42,200] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.66)
+[2021-08-04 01:05:42,943] (sweeper:296) sweeper:INFO - where: home
+[2021-08-04 01:05:43,649] (sweeper:351) sweeper:DEBUG - ocr result: Wott Neh oo
+[2021-08-04 01:05:43,650] (sweeper:357) sweeper:DEBUG - location(ocr): Wott Neh oo
+[2021-08-04 01:05:43,652] (sweeper:368) sweeper:INFO - location: none
+[2021-08-04 01:05:44,456] (sweeper:81) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 01:05:59,221] (sweeper:55) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 01:05:59,283] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:05:59,289] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.66)
+[2021-08-04 01:06:00,038] (sweeper:351) sweeper:DEBUG - ocr result: Wott Neh oo
+[2021-08-04 01:06:00,039] (sweeper:357) sweeper:DEBUG - location(ocr): Wott Neh oo
+[2021-08-04 01:06:00,039] (sweeper:368) sweeper:INFO - location: none
+[2021-08-04 01:06:00,161] (sweeper:296) sweeper:INFO - where: home
+[2021-08-04 01:06:01,685] (sweeper:81) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 01:06:09,115] (sweeper:55) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 01:06:09,174] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:06:09,184] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.67)
+[2021-08-04 01:06:09,540] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:06:09,872] (sweeper:351) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 01:06:09,872] (sweeper:357) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 01:06:09,873] (sweeper:363) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 01:06:13,671] (sweeper:81) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 01:06:22,486] (sweeper:55) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 01:06:22,542] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:06:22,547] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.31)
+[2021-08-04 01:06:22,876] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:06:23,322] (sweeper:351) sweeper:DEBUG - ocr result: ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:06:23,323] (sweeper:357) sweeper:DEBUG - location(ocr): ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:06:23,323] (sweeper:363) sweeper:INFO - location: #1947 x495 y616
+[2021-08-04 01:06:27,107] (sweeper:81) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 01:15:18,031] (sweeper:190) sweeper:INFO - program launched
+[2021-08-04 01:15:18,872] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 01:15:24,612] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:15:25,647] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:15:27,242] (sweeper:351) sweeper:DEBUG - ocr result: Wott Neh oo
+[2021-08-04 01:15:27,242] (sweeper:357) sweeper:DEBUG - location(ocr): Wott Neh oo
+[2021-08-04 01:15:27,243] (sweeper:368) sweeper:INFO - location: none
+[2021-08-04 01:15:27,964] (sweeper:351) sweeper:DEBUG - ocr result: Wott Neh oo
+[2021-08-04 01:15:27,965] (sweeper:357) sweeper:DEBUG - location(ocr): Wott Neh oo
+[2021-08-04 01:15:27,965] (sweeper:368) sweeper:INFO - location: none
+[2021-08-04 01:15:32,817] (sweeper:615) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:15:38,472] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:15:38,539] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:15:38,552] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.73)
+[2021-08-04 01:15:39,275] (sweeper:351) sweeper:DEBUG - ocr result: Wott Neh oo
+[2021-08-04 01:15:39,276] (sweeper:357) sweeper:DEBUG - location(ocr): Wott Neh oo
+[2021-08-04 01:15:39,277] (sweeper:368) sweeper:INFO - location: none
+[2021-08-04 01:15:39,357] (sweeper:296) sweeper:INFO - where: home
+[2021-08-04 01:15:40,855] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:15:57,343] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:15:57,404] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:15:57,409] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.73)
+[2021-08-04 01:15:58,091] (sweeper:351) sweeper:DEBUG - ocr result: Wott Neh oo
+[2021-08-04 01:15:58,092] (sweeper:357) sweeper:DEBUG - location(ocr): Wott Neh oo
+[2021-08-04 01:15:58,092] (sweeper:368) sweeper:INFO - location: none
+[2021-08-04 01:15:58,196] (sweeper:296) sweeper:INFO - where: home
+[2021-08-04 01:15:59,684] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:16:20,717] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:16:20,774] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:16:20,780] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.36)
+[2021-08-04 01:16:21,130] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:16:21,400] (sweeper:351) sweeper:DEBUG - ocr result: ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:16:21,400] (sweeper:357) sweeper:DEBUG - location(ocr): ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:16:21,401] (sweeper:363) sweeper:INFO - location: #1947 x495 y616
+[2021-08-04 01:16:21,456] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:16:28,365] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:16:28,436] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:16:28,447] (sweeper:571) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 01:16:28,807] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:16:29,131] (sweeper:351) sweeper:DEBUG - ocr result: #1947 X:495 Y:616 Q
+[2021-08-04 01:16:29,131] (sweeper:357) sweeper:DEBUG - location(ocr): #1947 X:495 Y:616 Q
+[2021-08-04 01:16:29,132] (sweeper:363) sweeper:INFO - location: #1947 x495 y616
+[2021-08-04 01:16:29,139] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:16:32,527] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:16:32,587] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:16:32,593] (sweeper:571) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:16:32,965] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:16:33,278] (sweeper:363) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:16:33,303] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:16:37,763] (sweeper:55) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 01:16:37,822] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:16:37,827] (sweeper:571) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:16:38,238] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:16:38,605] (sweeper:363) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:16:41,606] (sweeper:668) sweeper:INFO - ruby match value: 0.8162990212440491
+[2021-08-04 01:16:43,729] (sweeper:81) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 01:17:03,331] (sweeper:55) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 01:17:03,393] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:17:03,399] (sweeper:571) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:17:03,785] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:17:04,124] (sweeper:351) sweeper:DEBUG - ocr result: 81947 X:575Y:715 Q
+[2021-08-04 01:17:04,125] (sweeper:357) sweeper:DEBUG - location(ocr): 81947 X:575Y:715 Q
+[2021-08-04 01:17:04,125] (sweeper:363) sweeper:INFO - location: #81947 x575 y715
+[2021-08-04 01:17:07,739] (sweeper:668) sweeper:INFO - ruby match value: 0.6803982257843018
+[2021-08-04 01:17:09,848] (sweeper:81) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 01:17:19,164] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:17:19,225] (sweeper:550) sweeper:INFO - dialog: none
+[2021-08-04 01:17:19,230] (sweeper:568) sweeper:INFO - when: daytime (cr: 2.73)
+[2021-08-04 01:17:19,581] (sweeper:289) sweeper:INFO - where: field
+[2021-08-04 01:17:19,933] (sweeper:351) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 01:17:19,934] (sweeper:357) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 01:17:19,935] (sweeper:363) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 01:17:19,936] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:19:02,725] (sweeper:190) sweeper:INFO - program launched
+[2021-08-04 01:19:03,639] (sweeper:619) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 01:19:08,419] (sweeper:619) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:19:09,045] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:19:09,111] (sweeper:554) sweeper:INFO - dialog: none
+[2021-08-04 01:19:09,121] (sweeper:572) sweeper:INFO - when: daytime (cr: 2.83)
+[2021-08-04 01:19:09,467] (sweeper:293) sweeper:INFO - where: field
+[2021-08-04 01:19:09,798] (sweeper:355) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 01:19:09,798] (sweeper:361) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 01:19:09,799] (sweeper:367) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 01:19:23,066] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:21:16,312] (sweeper:190) sweeper:INFO - program launched
+[2021-08-04 01:21:17,144] (sweeper:620) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 01:21:23,063] (sweeper:620) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:21:23,753] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:21:23,824] (sweeper:555) sweeper:INFO - dialog: none
+[2021-08-04 01:21:23,833] (sweeper:573) sweeper:INFO - when: daytime (cr: 2.86)
+[2021-08-04 01:21:24,160] (sweeper:294) sweeper:INFO - where: field
+[2021-08-04 01:21:24,458] (sweeper:356) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 01:21:24,459] (sweeper:362) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 01:21:24,460] (sweeper:368) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 01:21:27,347] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:21:31,482] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:21:31,540] (sweeper:555) sweeper:INFO - dialog: none
+[2021-08-04 01:21:31,545] (sweeper:573) sweeper:INFO - when: daytime (cr: 2.86)
+[2021-08-04 01:21:31,868] (sweeper:294) sweeper:INFO - where: field
+[2021-08-04 01:21:32,177] (sweeper:356) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 01:21:32,177] (sweeper:362) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 01:21:32,178] (sweeper:368) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 01:21:44,485] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:22:27,667] (sweeper:190) sweeper:INFO - program launched
+[2021-08-04 01:22:28,860] (sweeper:620) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 01:22:33,991] (sweeper:620) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:22:36,135] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:22:36,200] (sweeper:555) sweeper:INFO - dialog: none
+[2021-08-04 01:22:36,209] (sweeper:573) sweeper:INFO - when: daytime (cr: 2.89)
+[2021-08-04 01:22:36,566] (sweeper:294) sweeper:INFO - where: field
+[2021-08-04 01:22:36,862] (sweeper:356) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 01:22:36,862] (sweeper:362) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 01:22:36,863] (sweeper:368) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 01:22:40,314] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:22:44,022] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:22:44,074] (sweeper:555) sweeper:INFO - dialog: none
+[2021-08-04 01:22:44,080] (sweeper:573) sweeper:INFO - when: daytime (cr: 2.89)
+[2021-08-04 01:22:44,393] (sweeper:294) sweeper:INFO - where: field
+[2021-08-04 01:22:44,678] (sweeper:356) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 01:22:44,678] (sweeper:362) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 01:22:44,679] (sweeper:368) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 01:22:53,993] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:22:56,765] (sweeper:55) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:22:56,824] (sweeper:555) sweeper:INFO - dialog: none
+[2021-08-04 01:22:56,830] (sweeper:573) sweeper:INFO - when: daytime (cr: 2.49)
+[2021-08-04 01:22:57,131] (sweeper:294) sweeper:INFO - where: field
+[2021-08-04 01:22:57,326] (sweeper:356) sweeper:DEBUG - ocr result: ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:22:57,327] (sweeper:362) sweeper:DEBUG - location(ocr): ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:22:57,327] (sweeper:368) sweeper:INFO - location: #1947 x495 y616
+[2021-08-04 01:23:05,173] (sweeper:81) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:25:08,526] (sweeper:186) sweeper:INFO - program launched
+[2021-08-04 01:25:09,353] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:25:15,232] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:25:15,977] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:25:16,033] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:25:16,042] (sweeper:565) sweeper:INFO - when: daytime (cr: 2.49)
+[2021-08-04 01:25:16,410] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:25:16,808] (sweeper:348) sweeper:DEBUG - ocr result: ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:25:16,810] (sweeper:354) sweeper:DEBUG - location(ocr): ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:25:16,812] (sweeper:360) sweeper:INFO - location: #1947 x495 y616
+[2021-08-04 01:25:18,269] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:25:21,931] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:25:21,988] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:25:21,993] (sweeper:565) sweeper:INFO - when: daytime (cr: 2.89)
+[2021-08-04 01:25:22,349] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:25:22,838] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:482 Y:620 Q
+[2021-08-04 01:25:22,839] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:482 Y:620 Q
+[2021-08-04 01:25:22,841] (sweeper:360) sweeper:INFO - location: #1947 x482 y620
+[2021-08-04 01:25:24,054] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:25:29,067] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:25:29,145] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:25:29,170] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:25:29,523] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:25:29,901] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:25:29,902] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:25:33,897] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:25:33,957] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:25:33,962] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:25:34,313] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:25:34,715] (sweeper:348) sweeper:DEBUG - ocr result: 81947 X:575Y:715 Q
+[2021-08-04 01:25:34,717] (sweeper:354) sweeper:DEBUG - location(ocr): 81947 X:575Y:715 Q
+[2021-08-04 01:25:34,719] (sweeper:360) sweeper:INFO - location: #81947 x575 y715
+[2021-08-04 01:25:34,721] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:25:38,711] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:25:55,480] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:25:55,534] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:25:55,540] (sweeper:565) sweeper:INFO - when: daytime (cr: 2.34)
+[2021-08-04 01:25:55,884] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:25:56,117] (sweeper:348) sweeper:DEBUG - ocr result: ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:25:56,118] (sweeper:354) sweeper:DEBUG - location(ocr): ¡Æ#1947X:495 Y:616 Q
+[2021-08-04 01:25:56,118] (sweeper:360) sweeper:INFO - location: #1947 x495 y616
+[2021-08-04 01:25:57,685] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:26:10,394] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:26:10,451] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:26:10,459] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:26:10,812] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:26:11,141] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:26:11,142] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:26:16,866] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:26:25,107] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:26:26,645] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:26:28,891] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:26:30,666] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:26:40,379] (sweeper:665) sweeper:INFO - ruby match value: 0.8147532343864441
+[2021-08-04 01:26:59,165] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:26:59,221] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:26:59,226] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:26:59,589] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:26:59,894] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:26:59,925] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:27:14,031] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:27:14,096] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 01:27:14,101] (sweeper:455) sweeper:DEBUG - button shape:3
+[2021-08-04 01:27:14,717] (sweeper:729) sweeper:INFO - dialog: check robot with 5 template(s)
+[2021-08-04 01:27:14,723] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:27:19,786] (sweeper:51) sweeper:INFO - ---Workflow level3 started
+[2021-08-04 01:27:19,848] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 01:27:19,851] (sweeper:455) sweeper:DEBUG - button shape:3
+[2021-08-04 01:27:20,469] (sweeper:729) sweeper:INFO - dialog: check robot with 5 template(s)
+[2021-08-04 01:27:20,477] (sweeper:77) sweeper:INFO - ---Workflow level3 finished
+[2021-08-04 01:27:22,959] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 01:27:22,959] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 01:27:22,961] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 01:27:22,987] (sweeper:785) sweeper:DEBUG - template matching #4 launched
+[2021-08-04 01:27:22,988] (sweeper:785) sweeper:DEBUG - template matching #5 launched
+[2021-08-04 01:27:23,810] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 01:27:24,069] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 01:27:37,606] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 01:27:43,584] (sweeper:804) sweeper:DEBUG - template matching #4 end
+[2021-08-04 01:27:47,490] (sweeper:804) sweeper:DEBUG - template matching #5 end
+[2021-08-04 01:27:51,931] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 01:27:55,119] (sweeper:51) sweeper:INFO - ---Workflow level3 started
+[2021-08-04 01:27:55,183] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 01:27:55,192] (sweeper:455) sweeper:DEBUG - button shape:3
+[2021-08-04 01:27:55,961] (sweeper:729) sweeper:INFO - dialog: check robot with 3 template(s)
+[2021-08-04 01:27:55,967] (sweeper:77) sweeper:INFO - ---Workflow level3 finished
+[2021-08-04 01:27:58,759] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 01:27:58,760] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 01:27:58,761] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 01:27:58,779] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 01:27:59,480] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 01:28:03,607] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 01:28:06,286] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 01:28:09,353] (sweeper:51) sweeper:INFO - ---Workflow level3 started
+[2021-08-04 01:28:09,410] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 01:28:09,413] (sweeper:455) sweeper:DEBUG - button shape:9
+[2021-08-04 01:28:09,414] (sweeper:455) sweeper:DEBUG - button shape:11
+[2021-08-04 01:28:09,416] (sweeper:455) sweeper:DEBUG - button shape:12
+[2021-08-04 01:28:10,168] (sweeper:729) sweeper:INFO - dialog: check robot with 3 template(s)
+[2021-08-04 01:28:10,175] (sweeper:77) sweeper:INFO - ---Workflow level3 finished
+[2021-08-04 01:28:11,301] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 01:28:11,302] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 01:28:11,303] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 01:28:11,331] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 01:28:11,828] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 01:28:32,336] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 01:28:35,017] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 01:28:38,978] (sweeper:51) sweeper:INFO - ---Workflow level3 started
+[2021-08-04 01:28:39,042] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 01:28:39,638] (sweeper:729) sweeper:INFO - dialog: check robot with 4 template(s)
+[2021-08-04 01:28:39,649] (sweeper:77) sweeper:INFO - ---Workflow level3 finished
+[2021-08-04 01:28:40,847] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 01:28:40,848] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 01:28:40,849] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 01:28:40,850] (sweeper:785) sweeper:DEBUG - template matching #4 launched
+[2021-08-04 01:28:42,457] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 01:28:43,679] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 01:28:43,849] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 01:28:53,030] (sweeper:804) sweeper:DEBUG - template matching #4 end
+[2021-08-04 01:28:56,588] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 01:30:11,229] (sweeper:51) sweeper:INFO - ---Workflow level3 started
+[2021-08-04 01:30:11,299] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 01:30:11,913] (sweeper:729) sweeper:INFO - dialog: check robot with 4 template(s)
+[2021-08-04 01:30:11,922] (sweeper:77) sweeper:INFO - ---Workflow level3 finished
+[2021-08-04 01:30:18,987] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 01:30:18,988] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 01:30:18,989] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 01:30:18,990] (sweeper:785) sweeper:DEBUG - template matching #4 launched
+[2021-08-04 01:30:19,164] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 01:30:23,171] (sweeper:804) sweeper:DEBUG - template matching #4 end
+[2021-08-04 01:30:26,200] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 01:30:31,794] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 01:30:34,433] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:30:35,372] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 01:30:39,056] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:30:40,025] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:30:43,008] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:30:44,412] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:30:45,583] (sweeper:51) sweeper:INFO - ---Workflow level3 started
+[2021-08-04 01:30:45,638] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 01:30:45,639] (sweeper:455) sweeper:DEBUG - button shape:11
+[2021-08-04 01:30:46,334] (sweeper:729) sweeper:INFO - dialog: check robot with 3 template(s)
+[2021-08-04 01:30:46,340] (sweeper:77) sweeper:INFO - ---Workflow level3 finished
+[2021-08-04 01:30:50,793] (sweeper:51) sweeper:INFO - ---Workflow level3 started
+[2021-08-04 01:30:50,860] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 01:30:51,472] (sweeper:729) sweeper:INFO - dialog: check robot with 3 template(s)
+[2021-08-04 01:30:51,477] (sweeper:77) sweeper:INFO - ---Workflow level3 finished
+[2021-08-04 01:30:53,603] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 01:30:53,603] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 01:30:53,603] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 01:30:54,732] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 01:30:55,259] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 01:31:05,300] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 01:31:07,990] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 01:31:36,456] (sweeper:51) sweeper:INFO - ---Workflow level3 started
+[2021-08-04 01:31:36,522] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:31:36,528] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:31:36,864] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:31:37,209] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:31:40,172] (sweeper:665) sweeper:INFO - ruby match value: 0.8216031789779663
+[2021-08-04 01:31:42,281] (sweeper:77) sweeper:INFO - ---Workflow level3 finished
+[2021-08-04 01:53:38,223] (sweeper:186) sweeper:INFO - program launched
+[2021-08-04 01:53:39,045] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 01:53:43,559] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:53:43,610] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:53:43,620] (sweeper:365) sweeper:INFO - location: none
+[2021-08-04 01:53:43,622] (sweeper:568) sweeper:INFO - when: night (cr: 0.07)
+[2021-08-04 01:53:43,636] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.0546448087431695
+[2021-08-04 01:53:43,636] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:53:43,850] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:53:47,042] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:53:48,236] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:53:48,298] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:53:48,304] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:53:48,313] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.0520833333333335
+[2021-08-04 01:53:48,317] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:53:48,963] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:53:48,965] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:53:56,675] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:53:56,735] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:53:56,740] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:53:56,751] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.0520833333333335
+[2021-08-04 01:53:56,752] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:53:57,265] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:53:57,266] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:54:01,714] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:54:02,651] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:54:02,694] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:54:02,706] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:54:02,715] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.056122448979592
+[2021-08-04 01:54:02,716] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:54:03,200] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:54:03,200] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:54:08,667] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 01:54:08,733] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:54:08,739] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:54:08,746] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.056122448979592
+[2021-08-04 01:54:08,748] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:54:09,249] (sweeper:360) sweeper:INFO - location: #1947 x571 y716
+[2021-08-04 01:54:09,663] (sweeper:856) sweeper:DEBUG - template found in 8try(s) ratio:1.339939024390244
+[2021-08-04 01:54:09,663] (sweeper:665) sweeper:INFO - ruby match value: 0.7481838464736938
+[2021-08-04 01:54:11,843] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 01:54:16,276] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 01:54:16,323] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:54:16,332] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:54:16,344] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.056122448979592
+[2021-08-04 01:54:16,344] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:54:16,830] (sweeper:348) sweeper:DEBUG - ocr result: 81947 X:575Y:715 Q
+[2021-08-04 01:54:16,830] (sweeper:354) sweeper:DEBUG - location(ocr): 81947 X:575Y:715 Q
+[2021-08-04 01:54:16,830] (sweeper:360) sweeper:INFO - location: #81947 x575 y715
+[2021-08-04 01:54:17,141] (sweeper:856) sweeper:DEBUG - template found in 6try(s) ratio:1.5442073170731707
+[2021-08-04 01:54:17,141] (sweeper:665) sweeper:INFO - ruby match value: 0.8442461490631104
+[2021-08-04 01:54:19,317] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 01:55:53,335] (sweeper:186) sweeper:INFO - program launched
+[2021-08-04 01:55:54,103] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 01:55:58,465] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:55:59,128] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:55:59,185] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:55:59,196] (sweeper:842) sweeper:DEBUG - index:19
+[2021-08-04 01:55:59,197] (sweeper:842) sweeper:DEBUG - index:19
+[2021-08-04 01:55:59,197] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 01:55:59,210] (sweeper:857) sweeper:DEBUG - template found in 1try(s) ratio:2.0520833333333335
+[2021-08-04 01:55:59,211] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:55:59,216] (sweeper:842) sweeper:DEBUG - index:20
+[2021-08-04 01:55:59,227] (sweeper:842) sweeper:DEBUG - index:17
+[2021-08-04 01:55:59,244] (sweeper:842) sweeper:DEBUG - index:22
+[2021-08-04 01:55:59,256] (sweeper:842) sweeper:DEBUG - index:15
+[2021-08-04 01:55:59,277] (sweeper:842) sweeper:DEBUG - index:24
+[2021-08-04 01:55:59,282] (sweeper:842) sweeper:DEBUG - index:13
+[2021-08-04 01:55:59,309] (sweeper:842) sweeper:DEBUG - index:26
+[2021-08-04 01:55:59,316] (sweeper:842) sweeper:DEBUG - index:11
+[2021-08-04 01:55:59,341] (sweeper:842) sweeper:DEBUG - index:28
+[2021-08-04 01:55:59,344] (sweeper:842) sweeper:DEBUG - index:9
+[2021-08-04 01:55:59,369] (sweeper:842) sweeper:DEBUG - index:30
+[2021-08-04 01:55:59,374] (sweeper:842) sweeper:DEBUG - index:7
+[2021-08-04 01:55:59,405] (sweeper:842) sweeper:DEBUG - index:32
+[2021-08-04 01:55:59,407] (sweeper:842) sweeper:DEBUG - index:5
+[2021-08-04 01:55:59,441] (sweeper:842) sweeper:DEBUG - index:34
+[2021-08-04 01:55:59,443] (sweeper:842) sweeper:DEBUG - index:3
+[2021-08-04 01:55:59,485] (sweeper:842) sweeper:DEBUG - index:36
+[2021-08-04 01:55:59,785] (sweeper:348) sweeper:DEBUG - ocr result: 81947 X:575Y:715 Q
+[2021-08-04 01:55:59,801] (sweeper:354) sweeper:DEBUG - location(ocr): 81947 X:575Y:715 Q
+[2021-08-04 01:55:59,801] (sweeper:360) sweeper:INFO - location: #81947 x575 y715
+[2021-08-04 01:55:59,803] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:56:25,243] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:56:35,011] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:56:35,073] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:56:35,077] (sweeper:842) sweeper:DEBUG - index:19
+[2021-08-04 01:56:35,077] (sweeper:842) sweeper:DEBUG - index:19
+[2021-08-04 01:56:35,078] (sweeper:568) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 01:56:35,089] (sweeper:857) sweeper:DEBUG - template found in 1try(s) ratio:2.0512820512820515
+[2021-08-04 01:56:35,090] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:56:35,095] (sweeper:842) sweeper:DEBUG - index:20
+[2021-08-04 01:56:35,110] (sweeper:842) sweeper:DEBUG - index:17
+[2021-08-04 01:56:35,128] (sweeper:842) sweeper:DEBUG - index:22
+[2021-08-04 01:56:35,137] (sweeper:842) sweeper:DEBUG - index:15
+[2021-08-04 01:56:35,155] (sweeper:842) sweeper:DEBUG - index:24
+[2021-08-04 01:56:35,164] (sweeper:842) sweeper:DEBUG - index:13
+[2021-08-04 01:56:35,192] (sweeper:842) sweeper:DEBUG - index:26
+[2021-08-04 01:56:35,197] (sweeper:842) sweeper:DEBUG - index:11
+[2021-08-04 01:56:35,224] (sweeper:842) sweeper:DEBUG - index:28
+[2021-08-04 01:56:35,229] (sweeper:842) sweeper:DEBUG - index:9
+[2021-08-04 01:56:35,254] (sweeper:842) sweeper:DEBUG - index:30
+[2021-08-04 01:56:35,258] (sweeper:842) sweeper:DEBUG - index:7
+[2021-08-04 01:56:35,290] (sweeper:842) sweeper:DEBUG - index:32
+[2021-08-04 01:56:35,292] (sweeper:842) sweeper:DEBUG - index:5
+[2021-08-04 01:56:35,328] (sweeper:842) sweeper:DEBUG - index:34
+[2021-08-04 01:56:35,329] (sweeper:842) sweeper:DEBUG - index:3
+[2021-08-04 01:56:35,367] (sweeper:842) sweeper:DEBUG - index:36
+[2021-08-04 01:56:35,687] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:572Y:718 Q
+[2021-08-04 01:56:35,687] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:572Y:718 Q
+[2021-08-04 01:56:35,687] (sweeper:360) sweeper:INFO - location: #1947 x572 y718
+[2021-08-04 01:56:35,695] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:56:41,233] (sweeper:842) sweeper:DEBUG - index:19
+[2021-08-04 01:56:41,289] (sweeper:842) sweeper:DEBUG - index:20
+[2021-08-04 01:56:41,357] (sweeper:842) sweeper:DEBUG - index:17
+[2021-08-04 01:56:41,422] (sweeper:842) sweeper:DEBUG - index:22
+[2021-08-04 01:56:41,480] (sweeper:842) sweeper:DEBUG - index:15
+[2021-08-04 01:56:41,556] (sweeper:842) sweeper:DEBUG - index:24
+[2021-08-04 01:56:41,602] (sweeper:842) sweeper:DEBUG - index:13
+[2021-08-04 01:56:41,704] (sweeper:842) sweeper:DEBUG - index:26
+[2021-08-04 01:56:41,734] (sweeper:842) sweeper:DEBUG - index:11
+[2021-08-04 01:56:41,853] (sweeper:842) sweeper:DEBUG - index:28
+[2021-08-04 01:56:41,875] (sweeper:842) sweeper:DEBUG - index:9
+[2021-08-04 01:56:42,018] (sweeper:842) sweeper:DEBUG - index:30
+[2021-08-04 01:56:42,038] (sweeper:842) sweeper:DEBUG - index:7
+[2021-08-04 01:56:42,202] (sweeper:842) sweeper:DEBUG - index:32
+[2021-08-04 01:56:42,222] (sweeper:842) sweeper:DEBUG - index:5
+[2021-08-04 01:56:42,400] (sweeper:842) sweeper:DEBUG - index:34
+[2021-08-04 01:56:42,406] (sweeper:842) sweeper:DEBUG - index:3
+[2021-08-04 01:56:42,599] (sweeper:842) sweeper:DEBUG - index:36
+[2021-08-04 01:56:42,617] (sweeper:842) sweeper:DEBUG - index:19
+[2021-08-04 01:56:42,677] (sweeper:842) sweeper:DEBUG - index:20
+[2021-08-04 01:56:42,726] (sweeper:842) sweeper:DEBUG - index:17
+[2021-08-04 01:56:42,791] (sweeper:842) sweeper:DEBUG - index:22
+[2021-08-04 01:56:42,842] (sweeper:842) sweeper:DEBUG - index:15
+[2021-08-04 01:56:42,933] (sweeper:842) sweeper:DEBUG - index:24
+[2021-08-04 01:56:42,972] (sweeper:842) sweeper:DEBUG - index:13
+[2021-08-04 01:56:43,057] (sweeper:842) sweeper:DEBUG - index:26
+[2021-08-04 01:56:43,103] (sweeper:842) sweeper:DEBUG - index:11
+[2021-08-04 01:56:43,221] (sweeper:842) sweeper:DEBUG - index:28
+[2021-08-04 01:56:43,251] (sweeper:857) sweeper:DEBUG - template found in 10try(s) ratio:1.1351766513056836
+[2021-08-04 01:56:43,252] (sweeper:665) sweeper:INFO - ruby match value: 0.7287898063659668
+[2021-08-04 01:58:54,621] (sweeper:186) sweeper:INFO - program launched
+[2021-08-04 01:58:55,393] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 01:58:59,322] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:59:02,755] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 01:59:03,600] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 01:59:03,653] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 01:59:03,665] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 01:59:03,665] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 01:59:03,667] (sweeper:568) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 01:59:03,678] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.0512820512820515
+[2021-08-04 01:59:03,679] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 01:59:03,687] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 01:59:03,701] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 01:59:03,717] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 01:59:03,731] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 01:59:03,745] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 01:59:03,753] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 01:59:03,767] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 01:59:03,773] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 01:59:03,790] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 01:59:03,799] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 01:59:03,818] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 01:59:03,825] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 01:59:03,848] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 01:59:03,853] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 01:59:03,874] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 01:59:03,878] (sweeper:841) sweeper:DEBUG - index:11
+[2021-08-04 01:59:03,900] (sweeper:841) sweeper:DEBUG - index:28
+[2021-08-04 01:59:03,904] (sweeper:841) sweeper:DEBUG - index:10
+[2021-08-04 01:59:03,931] (sweeper:841) sweeper:DEBUG - index:29
+[2021-08-04 01:59:03,934] (sweeper:841) sweeper:DEBUG - index:9
+[2021-08-04 01:59:03,960] (sweeper:841) sweeper:DEBUG - index:30
+[2021-08-04 01:59:03,964] (sweeper:841) sweeper:DEBUG - index:8
+[2021-08-04 01:59:03,992] (sweeper:841) sweeper:DEBUG - index:31
+[2021-08-04 01:59:03,995] (sweeper:841) sweeper:DEBUG - index:7
+[2021-08-04 01:59:04,027] (sweeper:841) sweeper:DEBUG - index:32
+[2021-08-04 01:59:04,029] (sweeper:841) sweeper:DEBUG - index:6
+[2021-08-04 01:59:04,059] (sweeper:841) sweeper:DEBUG - index:33
+[2021-08-04 01:59:04,061] (sweeper:841) sweeper:DEBUG - index:5
+[2021-08-04 01:59:04,097] (sweeper:841) sweeper:DEBUG - index:34
+[2021-08-04 01:59:04,099] (sweeper:841) sweeper:DEBUG - index:4
+[2021-08-04 01:59:04,136] (sweeper:841) sweeper:DEBUG - index:35
+[2021-08-04 01:59:04,375] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:572Y:718 Q
+[2021-08-04 01:59:04,375] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:572Y:718 Q
+[2021-08-04 01:59:04,375] (sweeper:360) sweeper:INFO - location: #1947 x572 y718
+[2021-08-04 01:59:04,380] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 01:59:09,058] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 01:59:09,121] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 01:59:09,176] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 01:59:09,242] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 01:59:09,293] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 01:59:09,359] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 01:59:09,416] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 01:59:09,492] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 01:59:09,536] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 01:59:09,624] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 01:59:09,668] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 01:59:09,758] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 01:59:09,801] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 01:59:09,906] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 01:59:09,935] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 01:59:10,040] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 01:59:10,088] (sweeper:841) sweeper:DEBUG - index:11
+[2021-08-04 01:59:10,239] (sweeper:841) sweeper:DEBUG - index:28
+[2021-08-04 01:59:10,310] (sweeper:841) sweeper:DEBUG - index:10
+[2021-08-04 01:59:10,770] (sweeper:841) sweeper:DEBUG - index:29
+[2021-08-04 01:59:10,832] (sweeper:841) sweeper:DEBUG - index:9
+[2021-08-04 01:59:11,346] (sweeper:841) sweeper:DEBUG - index:30
+[2021-08-04 01:59:11,394] (sweeper:841) sweeper:DEBUG - index:8
+[2021-08-04 01:59:11,931] (sweeper:841) sweeper:DEBUG - index:31
+[2021-08-04 01:59:11,984] (sweeper:841) sweeper:DEBUG - index:7
+[2021-08-04 01:59:12,528] (sweeper:841) sweeper:DEBUG - index:32
+[2021-08-04 01:59:12,549] (sweeper:841) sweeper:DEBUG - index:6
+[2021-08-04 01:59:12,723] (sweeper:841) sweeper:DEBUG - index:33
+[2021-08-04 01:59:12,731] (sweeper:841) sweeper:DEBUG - index:5
+[2021-08-04 01:59:12,905] (sweeper:841) sweeper:DEBUG - index:34
+[2021-08-04 01:59:12,916] (sweeper:841) sweeper:DEBUG - index:4
+[2021-08-04 01:59:13,105] (sweeper:841) sweeper:DEBUG - index:35
+[2021-08-04 01:59:13,119] (sweeper:841) sweeper:DEBUG - index:3
+[2021-08-04 01:59:13,337] (sweeper:841) sweeper:DEBUG - index:36
+[2021-08-04 01:59:13,340] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 01:59:13,396] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 01:59:13,447] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 01:59:13,503] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 01:59:13,547] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 01:59:13,613] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 01:59:13,656] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 01:59:13,713] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 01:59:13,760] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 01:59:13,830] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 01:59:13,869] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 01:59:13,946] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 01:59:13,988] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 01:59:14,079] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 01:59:14,108] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 01:59:14,197] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 01:59:14,235] (sweeper:856) sweeper:DEBUG - template found in 16try(s) ratio:1.2361963190184049
+[2021-08-04 01:59:14,236] (sweeper:665) sweeper:INFO - ruby match value: 0.8079429268836975
+[2021-08-04 02:00:49,570] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 02:00:49,648] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:00:49,653] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:00:49,653] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:00:49,653] (sweeper:568) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 02:00:49,664] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.0512820512820515
+[2021-08-04 02:00:49,664] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:00:49,671] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 02:00:49,689] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 02:00:49,705] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 02:00:49,719] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 02:00:49,735] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 02:00:49,748] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 02:00:49,762] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 02:00:49,770] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 02:00:49,793] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 02:00:49,800] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 02:00:49,820] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 02:00:49,827] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 02:00:49,850] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 02:00:49,856] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 02:00:49,881] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 02:00:49,885] (sweeper:841) sweeper:DEBUG - index:11
+[2021-08-04 02:00:49,909] (sweeper:841) sweeper:DEBUG - index:28
+[2021-08-04 02:00:49,913] (sweeper:841) sweeper:DEBUG - index:10
+[2021-08-04 02:00:49,934] (sweeper:841) sweeper:DEBUG - index:29
+[2021-08-04 02:00:49,938] (sweeper:841) sweeper:DEBUG - index:9
+[2021-08-04 02:00:49,966] (sweeper:841) sweeper:DEBUG - index:30
+[2021-08-04 02:00:49,970] (sweeper:841) sweeper:DEBUG - index:8
+[2021-08-04 02:00:49,999] (sweeper:841) sweeper:DEBUG - index:31
+[2021-08-04 02:00:50,002] (sweeper:841) sweeper:DEBUG - index:7
+[2021-08-04 02:00:50,033] (sweeper:841) sweeper:DEBUG - index:32
+[2021-08-04 02:00:50,035] (sweeper:841) sweeper:DEBUG - index:6
+[2021-08-04 02:00:50,071] (sweeper:841) sweeper:DEBUG - index:33
+[2021-08-04 02:00:50,074] (sweeper:841) sweeper:DEBUG - index:5
+[2021-08-04 02:00:50,111] (sweeper:841) sweeper:DEBUG - index:34
+[2021-08-04 02:00:50,113] (sweeper:841) sweeper:DEBUG - index:4
+[2021-08-04 02:00:50,153] (sweeper:841) sweeper:DEBUG - index:35
+[2021-08-04 02:00:50,377] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:572Y:718 Q
+[2021-08-04 02:00:50,377] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:572Y:718 Q
+[2021-08-04 02:00:50,377] (sweeper:360) sweeper:INFO - location: #1947 x572 y718
+[2021-08-04 02:00:50,386] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 02:00:53,610] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:00:53,678] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:00:53,681] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:00:53,682] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:00:53,683] (sweeper:568) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 02:00:53,695] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.0512820512820515
+[2021-08-04 02:00:53,697] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:00:53,701] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 02:00:53,716] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 02:00:53,731] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 02:00:53,744] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 02:00:53,761] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 02:00:53,771] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 02:00:53,787] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 02:00:53,796] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 02:00:53,812] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 02:00:53,819] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 02:00:53,842] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 02:00:53,850] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 02:00:53,870] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 02:00:53,878] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 02:00:53,902] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 02:00:53,907] (sweeper:841) sweeper:DEBUG - index:11
+[2021-08-04 02:00:53,931] (sweeper:841) sweeper:DEBUG - index:28
+[2021-08-04 02:00:53,935] (sweeper:841) sweeper:DEBUG - index:10
+[2021-08-04 02:00:53,963] (sweeper:841) sweeper:DEBUG - index:29
+[2021-08-04 02:00:53,966] (sweeper:841) sweeper:DEBUG - index:9
+[2021-08-04 02:00:53,997] (sweeper:841) sweeper:DEBUG - index:30
+[2021-08-04 02:00:54,000] (sweeper:841) sweeper:DEBUG - index:8
+[2021-08-04 02:00:54,032] (sweeper:841) sweeper:DEBUG - index:31
+[2021-08-04 02:00:54,034] (sweeper:841) sweeper:DEBUG - index:7
+[2021-08-04 02:00:54,067] (sweeper:841) sweeper:DEBUG - index:32
+[2021-08-04 02:00:54,069] (sweeper:841) sweeper:DEBUG - index:6
+[2021-08-04 02:00:54,102] (sweeper:841) sweeper:DEBUG - index:33
+[2021-08-04 02:00:54,103] (sweeper:841) sweeper:DEBUG - index:5
+[2021-08-04 02:00:54,137] (sweeper:841) sweeper:DEBUG - index:34
+[2021-08-04 02:00:54,138] (sweeper:841) sweeper:DEBUG - index:4
+[2021-08-04 02:00:54,174] (sweeper:841) sweeper:DEBUG - index:35
+[2021-08-04 02:00:54,413] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:572Y:718 Q
+[2021-08-04 02:00:54,413] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:572Y:718 Q
+[2021-08-04 02:00:54,413] (sweeper:360) sweeper:INFO - location: #1947 x572 y718
+[2021-08-04 02:00:54,426] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:00:54,489] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 02:00:54,544] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 02:00:54,607] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 02:00:54,658] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 02:00:54,732] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 02:00:54,777] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 02:00:54,853] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 02:00:54,887] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 02:00:54,972] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 02:00:55,003] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 02:00:55,089] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 02:00:55,118] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 02:00:55,206] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 02:00:55,236] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 02:00:55,340] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 02:00:55,370] (sweeper:856) sweeper:DEBUG - template found in 16try(s) ratio:1.2361963190184049
+[2021-08-04 02:00:55,371] (sweeper:665) sweeper:INFO - ruby match value: 0.8079429268836975
+[2021-08-04 02:00:57,551] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:00:59,095] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:00:59,153] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:00:59,156] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:00:59,158] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:00:59,157] (sweeper:568) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 02:00:59,167] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.0512820512820515
+[2021-08-04 02:00:59,168] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:00:59,174] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 02:00:59,190] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 02:00:59,205] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 02:00:59,218] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 02:00:59,234] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 02:00:59,241] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 02:00:59,257] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 02:00:59,266] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 02:00:59,282] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 02:00:59,289] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 02:00:59,310] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 02:00:59,318] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 02:00:59,341] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 02:00:59,348] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 02:00:59,373] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 02:00:59,377] (sweeper:841) sweeper:DEBUG - index:11
+[2021-08-04 02:00:59,403] (sweeper:841) sweeper:DEBUG - index:28
+[2021-08-04 02:00:59,406] (sweeper:841) sweeper:DEBUG - index:10
+[2021-08-04 02:00:59,432] (sweeper:841) sweeper:DEBUG - index:29
+[2021-08-04 02:00:59,435] (sweeper:841) sweeper:DEBUG - index:9
+[2021-08-04 02:00:59,465] (sweeper:841) sweeper:DEBUG - index:30
+[2021-08-04 02:00:59,468] (sweeper:841) sweeper:DEBUG - index:8
+[2021-08-04 02:00:59,499] (sweeper:841) sweeper:DEBUG - index:31
+[2021-08-04 02:00:59,503] (sweeper:841) sweeper:DEBUG - index:7
+[2021-08-04 02:00:59,533] (sweeper:841) sweeper:DEBUG - index:32
+[2021-08-04 02:00:59,535] (sweeper:841) sweeper:DEBUG - index:6
+[2021-08-04 02:00:59,567] (sweeper:841) sweeper:DEBUG - index:33
+[2021-08-04 02:00:59,569] (sweeper:841) sweeper:DEBUG - index:5
+[2021-08-04 02:00:59,604] (sweeper:841) sweeper:DEBUG - index:34
+[2021-08-04 02:00:59,606] (sweeper:841) sweeper:DEBUG - index:4
+[2021-08-04 02:00:59,645] (sweeper:841) sweeper:DEBUG - index:35
+[2021-08-04 02:00:59,900] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:572Y:718 Q
+[2021-08-04 02:00:59,900] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:572Y:718 Q
+[2021-08-04 02:00:59,900] (sweeper:360) sweeper:INFO - location: #1947 x572 y718
+[2021-08-04 02:00:59,906] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:00:59,970] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 02:01:00,032] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 02:01:00,092] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 02:01:00,143] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 02:01:00,215] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 02:01:00,260] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 02:01:00,335] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 02:01:00,370] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 02:01:00,453] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 02:01:00,488] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 02:01:00,574] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 02:01:00,606] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 02:01:00,700] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 02:01:00,725] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 02:01:00,844] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 02:01:00,872] (sweeper:856) sweeper:DEBUG - template found in 16try(s) ratio:1.2361963190184049
+[2021-08-04 02:01:00,873] (sweeper:665) sweeper:INFO - ruby match value: 0.8079429268836975
+[2021-08-04 02:01:03,039] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:01:04,286] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:01:04,356] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:01:04,360] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:01:04,360] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:01:04,361] (sweeper:568) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 02:01:04,371] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.0512820512820515
+[2021-08-04 02:01:04,372] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:01:04,376] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 02:01:04,393] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 02:01:04,407] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 02:01:04,421] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 02:01:04,437] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 02:01:04,446] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 02:01:04,464] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 02:01:04,473] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 02:01:04,492] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 02:01:04,500] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 02:01:04,522] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 02:01:04,527] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 02:01:04,550] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 02:01:04,557] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 02:01:04,582] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 02:01:04,588] (sweeper:841) sweeper:DEBUG - index:11
+[2021-08-04 02:01:04,610] (sweeper:841) sweeper:DEBUG - index:28
+[2021-08-04 02:01:04,613] (sweeper:841) sweeper:DEBUG - index:10
+[2021-08-04 02:01:04,639] (sweeper:841) sweeper:DEBUG - index:29
+[2021-08-04 02:01:04,642] (sweeper:841) sweeper:DEBUG - index:9
+[2021-08-04 02:01:04,668] (sweeper:841) sweeper:DEBUG - index:30
+[2021-08-04 02:01:04,672] (sweeper:841) sweeper:DEBUG - index:8
+[2021-08-04 02:01:04,705] (sweeper:841) sweeper:DEBUG - index:31
+[2021-08-04 02:01:04,708] (sweeper:841) sweeper:DEBUG - index:7
+[2021-08-04 02:01:04,739] (sweeper:841) sweeper:DEBUG - index:32
+[2021-08-04 02:01:04,741] (sweeper:841) sweeper:DEBUG - index:6
+[2021-08-04 02:01:04,775] (sweeper:841) sweeper:DEBUG - index:33
+[2021-08-04 02:01:04,777] (sweeper:841) sweeper:DEBUG - index:5
+[2021-08-04 02:01:04,814] (sweeper:841) sweeper:DEBUG - index:34
+[2021-08-04 02:01:04,816] (sweeper:841) sweeper:DEBUG - index:4
+[2021-08-04 02:01:04,858] (sweeper:841) sweeper:DEBUG - index:35
+[2021-08-04 02:01:05,105] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:572Y:718 Q
+[2021-08-04 02:01:05,105] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:572Y:718 Q
+[2021-08-04 02:01:05,105] (sweeper:360) sweeper:INFO - location: #1947 x572 y718
+[2021-08-04 02:01:05,105] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:01:05,172] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 02:01:05,225] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 02:01:05,286] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 02:01:05,334] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 02:01:05,404] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 02:01:05,448] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 02:01:05,525] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 02:01:05,561] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 02:01:05,657] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 02:01:05,704] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 02:01:05,815] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 02:01:05,848] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 02:01:05,949] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 02:01:05,985] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 02:01:06,083] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 02:01:06,116] (sweeper:856) sweeper:DEBUG - template found in 16try(s) ratio:1.2361963190184049
+[2021-08-04 02:01:06,117] (sweeper:665) sweeper:INFO - ruby match value: 0.8079429268836975
+[2021-08-04 02:01:08,295] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:01:10,134] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:01:10,208] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:01:10,212] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:01:10,212] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:01:10,213] (sweeper:568) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 02:01:10,223] (sweeper:856) sweeper:DEBUG - template found in 1try(s) ratio:2.0512820512820515
+[2021-08-04 02:01:10,224] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:01:10,233] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 02:01:10,247] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 02:01:10,261] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 02:01:10,335] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 02:01:10,350] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 02:01:10,360] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 02:01:10,378] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 02:01:10,384] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 02:01:10,402] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 02:01:10,412] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 02:01:10,432] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 02:01:10,439] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 02:01:10,464] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 02:01:10,468] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 02:01:10,495] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 02:01:10,499] (sweeper:841) sweeper:DEBUG - index:11
+[2021-08-04 02:01:10,523] (sweeper:841) sweeper:DEBUG - index:28
+[2021-08-04 02:01:10,528] (sweeper:841) sweeper:DEBUG - index:10
+[2021-08-04 02:01:10,552] (sweeper:841) sweeper:DEBUG - index:29
+[2021-08-04 02:01:10,555] (sweeper:841) sweeper:DEBUG - index:9
+[2021-08-04 02:01:10,586] (sweeper:841) sweeper:DEBUG - index:30
+[2021-08-04 02:01:10,590] (sweeper:841) sweeper:DEBUG - index:8
+[2021-08-04 02:01:10,621] (sweeper:841) sweeper:DEBUG - index:31
+[2021-08-04 02:01:10,625] (sweeper:841) sweeper:DEBUG - index:7
+[2021-08-04 02:01:10,681] (sweeper:841) sweeper:DEBUG - index:32
+[2021-08-04 02:01:10,683] (sweeper:841) sweeper:DEBUG - index:6
+[2021-08-04 02:01:10,722] (sweeper:841) sweeper:DEBUG - index:33
+[2021-08-04 02:01:10,724] (sweeper:841) sweeper:DEBUG - index:5
+[2021-08-04 02:01:10,765] (sweeper:841) sweeper:DEBUG - index:34
+[2021-08-04 02:01:10,766] (sweeper:841) sweeper:DEBUG - index:4
+[2021-08-04 02:01:10,810] (sweeper:841) sweeper:DEBUG - index:35
+[2021-08-04 02:01:11,077] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:572Y:718 Q
+[2021-08-04 02:01:11,077] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:572Y:718 Q
+[2021-08-04 02:01:11,077] (sweeper:360) sweeper:INFO - location: #1947 x572 y718
+[2021-08-04 02:01:11,089] (sweeper:841) sweeper:DEBUG - index:19
+[2021-08-04 02:01:11,151] (sweeper:841) sweeper:DEBUG - index:20
+[2021-08-04 02:01:11,206] (sweeper:841) sweeper:DEBUG - index:18
+[2021-08-04 02:01:11,267] (sweeper:841) sweeper:DEBUG - index:21
+[2021-08-04 02:01:11,315] (sweeper:841) sweeper:DEBUG - index:17
+[2021-08-04 02:01:11,384] (sweeper:841) sweeper:DEBUG - index:22
+[2021-08-04 02:01:11,429] (sweeper:841) sweeper:DEBUG - index:16
+[2021-08-04 02:01:11,503] (sweeper:841) sweeper:DEBUG - index:23
+[2021-08-04 02:01:11,536] (sweeper:841) sweeper:DEBUG - index:15
+[2021-08-04 02:01:11,621] (sweeper:841) sweeper:DEBUG - index:24
+[2021-08-04 02:01:11,655] (sweeper:841) sweeper:DEBUG - index:14
+[2021-08-04 02:01:11,742] (sweeper:841) sweeper:DEBUG - index:25
+[2021-08-04 02:01:11,772] (sweeper:841) sweeper:DEBUG - index:13
+[2021-08-04 02:01:11,864] (sweeper:841) sweeper:DEBUG - index:26
+[2021-08-04 02:01:11,889] (sweeper:841) sweeper:DEBUG - index:12
+[2021-08-04 02:01:11,987] (sweeper:841) sweeper:DEBUG - index:27
+[2021-08-04 02:01:12,018] (sweeper:856) sweeper:DEBUG - template found in 16try(s) ratio:1.2361963190184049
+[2021-08-04 02:01:12,019] (sweeper:665) sweeper:INFO - ruby match value: 0.8079429268836975
+[2021-08-04 02:01:14,185] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:01:46,303] (sweeper:186) sweeper:INFO - program launched
+[2021-08-04 02:01:47,050] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 0try(s)
+[2021-08-04 02:01:51,215] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 02:01:52,527] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 02:01:57,584] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 02:01:57,646] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:01:57,657] (sweeper:568) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 02:01:57,670] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.056122448979592
+[2021-08-04 02:01:57,670] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:01:58,217] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:572Y:718 Q
+[2021-08-04 02:01:58,217] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:572Y:718 Q
+[2021-08-04 02:01:58,217] (sweeper:360) sweeper:INFO - location: #1947 x572 y718
+[2021-08-04 02:01:58,231] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 02:02:01,658] (sweeper:51) sweeper:INFO - ---Workflow level1 started
+[2021-08-04 02:02:01,716] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:02:01,725] (sweeper:568) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 02:02:01,735] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.056122448979592
+[2021-08-04 02:02:01,737] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:02:02,286] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:572Y:718 Q
+[2021-08-04 02:02:02,286] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:572Y:718 Q
+[2021-08-04 02:02:02,286] (sweeper:360) sweeper:INFO - location: #1947 x572 y718
+[2021-08-04 02:02:02,288] (sweeper:77) sweeper:INFO - ---Workflow level1 finished
+[2021-08-04 02:02:05,602] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:02:05,655] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:02:05,663] (sweeper:568) sweeper:INFO - when: night (cr: 0.1)
+[2021-08-04 02:02:05,675] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.056122448979592
+[2021-08-04 02:02:05,675] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:02:06,207] (sweeper:348) sweeper:DEBUG - ocr result: #1947 X:572Y:718 Q
+[2021-08-04 02:02:06,207] (sweeper:354) sweeper:DEBUG - location(ocr): #1947 X:572Y:718 Q
+[2021-08-04 02:02:06,207] (sweeper:360) sweeper:INFO - location: #1947 x572 y718
+[2021-08-04 02:02:07,054] (sweeper:855) sweeper:DEBUG - template found in 16try(s) ratio:1.2370030581039755
+[2021-08-04 02:02:07,054] (sweeper:665) sweeper:INFO - ruby match value: 0.8106950521469116
+[2021-08-04 02:02:09,216] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:02:13,179] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:02:13,228] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:02:13,238] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 02:02:13,247] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.056122448979592
+[2021-08-04 02:02:13,249] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:02:13,860] (sweeper:360) sweeper:INFO - location: #1947 x515 y954
+[2021-08-04 02:02:14,575] (sweeper:855) sweeper:DEBUG - template found in 14try(s) ratio:1.3394495412844036
+[2021-08-04 02:02:14,575] (sweeper:665) sweeper:INFO - ruby match value: 0.8380414247512817
+[2021-08-04 02:02:16,756] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:02:24,269] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:02:24,329] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 02:02:24,329] (sweeper:455) sweeper:DEBUG - button shape:9
+[2021-08-04 02:02:24,337] (sweeper:455) sweeper:DEBUG - button shape:11
+[2021-08-04 02:02:24,338] (sweeper:455) sweeper:DEBUG - button shape:12
+[2021-08-04 02:02:24,338] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.0557275541795668
+[2021-08-04 02:02:24,655] (sweeper:729) sweeper:INFO - dialog: check robot with 3 template(s)
+[2021-08-04 02:02:24,663] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:02:27,207] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 02:02:27,207] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 02:02:27,207] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 02:02:27,226] (sweeper:855) sweeper:DEBUG - template found in 11try(s) ratio:0.4542124542124542
+[2021-08-04 02:02:27,230] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 02:02:27,761] (sweeper:855) sweeper:DEBUG - template found in 37try(s) ratio:0.5897435897435898
+[2021-08-04 02:02:27,761] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 02:02:42,784] (sweeper:855) sweeper:DEBUG - template found in 13try(s) ratio:0.46520146520146516
+[2021-08-04 02:02:42,784] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 02:02:45,527] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 02:02:49,585] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:02:49,643] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 02:02:49,651] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.0557275541795668
+[2021-08-04 02:02:49,659] (sweeper:455) sweeper:DEBUG - button shape:3
+[2021-08-04 02:02:50,019] (sweeper:729) sweeper:INFO - dialog: check robot with 3 template(s)
+[2021-08-04 02:02:50,025] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:02:51,472] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 02:02:51,472] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 02:02:51,472] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 02:02:51,517] (sweeper:855) sweeper:DEBUG - template found in 23try(s) ratio:0.5164835164835164
+[2021-08-04 02:02:51,519] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 02:02:52,206] (sweeper:855) sweeper:DEBUG - template found in 23try(s) ratio:0.5164835164835164
+[2021-08-04 02:02:52,206] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 02:02:55,510] (sweeper:855) sweeper:DEBUG - template found in 31try(s) ratio:0.5567765567765568
+[2021-08-04 02:02:55,510] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 02:02:58,270] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 02:03:01,887] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:03:01,956] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.0547445255474455
+[2021-08-04 02:03:01,967] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 02:03:01,970] (sweeper:455) sweeper:DEBUG - button shape:3
+[2021-08-04 02:03:02,227] (sweeper:729) sweeper:INFO - dialog: check robot with 5 template(s)
+[2021-08-04 02:03:02,242] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:03:03,479] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 02:03:03,479] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 02:03:03,479] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 02:03:03,495] (sweeper:785) sweeper:DEBUG - template matching #5 launched
+[2021-08-04 02:03:03,495] (sweeper:785) sweeper:DEBUG - template matching #4 launched
+[2021-08-04 02:03:04,146] (sweeper:855) sweeper:DEBUG - template found in 2try(s) ratio:0.39194139194139194
+[2021-08-04 02:03:04,146] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 02:03:04,417] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:0.4029304029304029
+[2021-08-04 02:03:04,417] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 02:03:17,345] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:0.4029304029304029
+[2021-08-04 02:03:17,345] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 02:03:22,713] (sweeper:855) sweeper:DEBUG - template found in 10try(s) ratio:0.3516483516483517
+[2021-08-04 02:03:22,713] (sweeper:804) sweeper:DEBUG - template matching #4 end
+[2021-08-04 02:03:25,811] (sweeper:855) sweeper:DEBUG - template found in 23try(s) ratio:0.5164835164835164
+[2021-08-04 02:03:25,811] (sweeper:804) sweeper:DEBUG - template matching #5 end
+[2021-08-04 02:03:30,342] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 02:03:37,829] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 02:03:40,410] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 02:03:42,484] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:03:42,542] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 02:03:42,550] (sweeper:455) sweeper:DEBUG - button shape:8
+[2021-08-04 02:03:42,551] (sweeper:455) sweeper:DEBUG - button shape:3
+[2021-08-04 02:03:42,559] (sweeper:855) sweeper:DEBUG - template found in 4try(s) ratio:1.8494983277591972
+[2021-08-04 02:03:42,877] (sweeper:729) sweeper:INFO - dialog: check robot with 5 template(s)
+[2021-08-04 02:03:42,885] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:03:43,804] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 02:03:43,804] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 02:03:43,813] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 02:03:43,814] (sweeper:785) sweeper:DEBUG - template matching #5 launched
+[2021-08-04 02:03:43,815] (sweeper:785) sweeper:DEBUG - template matching #4 launched
+[2021-08-04 02:03:44,587] (sweeper:855) sweeper:DEBUG - template found in 4try(s) ratio:0.3825503355704698
+[2021-08-04 02:03:44,603] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 02:03:44,903] (sweeper:855) sweeper:DEBUG - template found in 2try(s) ratio:0.3926174496644296
+[2021-08-04 02:03:44,903] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 02:03:59,888] (sweeper:855) sweeper:DEBUG - template found in 18try(s) ratio:0.31208053691275167
+[2021-08-04 02:03:59,888] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 02:04:00,057] (sweeper:855) sweeper:DEBUG - template found in 8try(s) ratio:0.36241610738255037
+[2021-08-04 02:04:00,073] (sweeper:804) sweeper:DEBUG - template matching #5 end
+[2021-08-04 02:04:16,637] (sweeper:855) sweeper:DEBUG - template found in 27try(s) ratio:0.5369127516778524
+[2021-08-04 02:04:16,637] (sweeper:804) sweeper:DEBUG - template matching #4 end
+[2021-08-04 02:04:21,169] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 02:04:26,146] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:04:26,199] (sweeper:455) sweeper:DEBUG - button shape:4
+[2021-08-04 02:04:26,229] (sweeper:855) sweeper:DEBUG - template found in 4try(s) ratio:1.8494983277591972
+[2021-08-04 02:04:26,551] (sweeper:729) sweeper:INFO - dialog: check robot with 4 template(s)
+[2021-08-04 02:04:26,561] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:04:28,463] (sweeper:785) sweeper:DEBUG - template matching #1 launched
+[2021-08-04 02:04:28,463] (sweeper:785) sweeper:DEBUG - template matching #2 launched
+[2021-08-04 02:04:28,463] (sweeper:785) sweeper:DEBUG - template matching #3 launched
+[2021-08-04 02:04:28,474] (sweeper:785) sweeper:DEBUG - template matching #4 launched
+[2021-08-04 02:04:30,291] (sweeper:855) sweeper:DEBUG - template found in 23try(s) ratio:0.5167785234899329
+[2021-08-04 02:04:30,304] (sweeper:804) sweeper:DEBUG - template matching #3 end
+[2021-08-04 02:04:31,091] (sweeper:855) sweeper:DEBUG - template found in 5try(s) ratio:0.4228187919463087
+[2021-08-04 02:04:31,091] (sweeper:804) sweeper:DEBUG - template matching #1 end
+[2021-08-04 02:04:31,638] (sweeper:855) sweeper:DEBUG - template found in 21try(s) ratio:0.5067114093959731
+[2021-08-04 02:04:31,638] (sweeper:804) sweeper:DEBUG - template matching #2 end
+[2021-08-04 02:04:40,898] (sweeper:855) sweeper:DEBUG - template found in 15try(s) ratio:0.476510067114094
+[2021-08-04 02:04:40,898] (sweeper:804) sweeper:DEBUG - template matching #4 end
+[2021-08-04 02:04:44,543] (sweeper:827) sweeper:DEBUG - all templates clicked
+[2021-08-04 02:04:55,620] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 02:05:00,342] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:05:00,397] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:05:00,405] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 02:05:00,414] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.0558375634517767
+[2021-08-04 02:05:00,414] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:05:00,986] (sweeper:360) sweeper:INFO - location: #1947 x539 y798
+[2021-08-04 02:05:01,410] (sweeper:855) sweeper:DEBUG - template found in 8try(s) ratio:1.6468797564687976
+[2021-08-04 02:05:01,410] (sweeper:665) sweeper:INFO - ruby match value: 0.75071120262146
+[2021-08-04 02:05:03,570] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:05:08,270] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:05:08,321] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:05:08,333] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 02:05:08,343] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.0558375634517767
+[2021-08-04 02:05:08,345] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:05:08,922] (sweeper:360) sweeper:INFO - location: #1947 x539 y798
+[2021-08-04 02:05:09,350] (sweeper:855) sweeper:DEBUG - template found in 8try(s) ratio:1.6468797564687976
+[2021-08-04 02:05:09,350] (sweeper:665) sweeper:INFO - ruby match value: 0.75071120262146
+[2021-08-04 02:05:11,493] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:05:13,978] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:05:14,028] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:05:14,039] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 02:05:14,049] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.0558375634517767
+[2021-08-04 02:05:14,051] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:05:14,622] (sweeper:360) sweeper:INFO - location: #1947 x539 y798
+[2021-08-04 02:05:15,024] (sweeper:855) sweeper:DEBUG - template found in 8try(s) ratio:1.6468797564687976
+[2021-08-04 02:05:15,039] (sweeper:665) sweeper:INFO - ruby match value: 0.75071120262146
+[2021-08-04 02:05:17,167] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:05:21,241] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:05:21,301] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:05:21,315] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 02:05:21,324] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.0558375634517767
+[2021-08-04 02:05:21,325] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:05:21,901] (sweeper:360) sweeper:INFO - location: #1947 x450 y930
+[2021-08-04 02:05:24,688] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:05:30,618] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:05:30,677] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:05:30,686] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 02:05:30,696] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.0558375634517767
+[2021-08-04 02:05:30,699] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:05:31,277] (sweeper:360) sweeper:INFO - location: #1947 x539 y798
+[2021-08-04 02:05:31,691] (sweeper:855) sweeper:DEBUG - template found in 8try(s) ratio:1.6468797564687976
+[2021-08-04 02:05:31,691] (sweeper:665) sweeper:INFO - ruby match value: 0.75071120262146
+[2021-08-04 02:05:33,864] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:06:02,632] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:06:02,689] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:06:02,701] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 02:06:02,712] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.0558375634517767
+[2021-08-04 02:06:02,713] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:06:03,292] (sweeper:360) sweeper:INFO - location: #1947 x539 y798
+[2021-08-04 02:06:03,703] (sweeper:855) sweeper:DEBUG - template found in 8try(s) ratio:1.6468797564687976
+[2021-08-04 02:06:03,719] (sweeper:665) sweeper:INFO - ruby match value: 0.75071120262146
+[2021-08-04 02:06:05,871] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:06:09,056] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:06:09,111] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:06:09,119] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 02:06:09,130] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.0558375634517767
+[2021-08-04 02:06:09,131] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:06:09,692] (sweeper:360) sweeper:INFO - location: #1947 x539 y798
+[2021-08-04 02:06:10,108] (sweeper:855) sweeper:DEBUG - template found in 8try(s) ratio:1.6468797564687976
+[2021-08-04 02:06:10,108] (sweeper:665) sweeper:INFO - ruby match value: 0.75071120262146
+[2021-08-04 02:06:12,295] (sweeper:77) sweeper:INFO - ---Workflow level2 finished
+[2021-08-04 02:06:13,551] (sweeper:612) sweeper:DEBUG - bigContourFinder: stopped in 1try(s)
+[2021-08-04 02:06:16,647] (sweeper:51) sweeper:INFO - ---Workflow level2 started
+[2021-08-04 02:06:16,701] (sweeper:547) sweeper:INFO - dialog: none
+[2021-08-04 02:06:16,713] (sweeper:568) sweeper:INFO - when: night (cr: 0.09)
+[2021-08-04 02:06:16,721] (sweeper:855) sweeper:DEBUG - template found in 1try(s) ratio:2.056122448979592
+[2021-08-04 02:06:16,725] (sweeper:286) sweeper:INFO - where: field
+[2021-08-04 02:06:17,294] (sweeper:360) sweeper:INFO - location: #1947 x544 y799
+[2021-08-04 02:06:20,112] (sweeper:77) sweeper:INFO - ---Workflow level2 finished

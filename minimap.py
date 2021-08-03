@@ -1,10 +1,9 @@
 import json
-from PyQt5.QtWidgets import QAction, QMainWindow, QWidget
-from PyQt5.QtCore import QPointF, pyqtSignal, QObject, Qt
-from PyQt5.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF, QTransform
+from PyQt5.QtWidgets import  QWidget
+from PyQt5.QtCore import QObject, QPointF, pyqtSignal
+from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from pathlib import Path
 from sweeper import Sweeper
-from threading import Lock
 
 def rayCastingCheck( land:QPolygonF, lat:float, lng:float):
     count  = 0
@@ -20,23 +19,6 @@ def rayCastingCheck( land:QPolygonF, lat:float, lng:float):
         if west( vertex1, vertex2, lng, lat):
             count += 1
     return bool( count % 2 == 1 )
-'''
-function contains(boundary, lat, lng) {
-  //https://rosettacode.org/wiki/Ray-casting_algorithm
-  var count = 0;
-  for (var b = 0; b < bounds.length; b++) {
-      var vertex1 = bounds[b];
-      var vertex2 = bounds[(b + 1) % bounds.length];
-      if( vertex1.x == vertex2.x && vertex2.x == lng) {
-        if( Math.max( vertex1.y, vertex2.y) > lat && Math.min( vertex1.y, vertex2.y ) < lat) return true; 
-      } else if( vertex1.y == vertex2.y && vertex2.y == lat) {
-        if( Math.max( vertex1.x, vertex2.x) > lng && Math.min( vertex1.x, vertex2.x ) < lng) return true; 
-      }
-      if (west(vertex1, vertex2, lng, lat))
-          ++count;
-  }
-  return (count % 2) == 1;
-'''
 
 def west( v1:QPointF, v2:QPointF, x:float, y:float ):
     if v1.y() <= v2.y():
@@ -49,67 +31,55 @@ def west( v1:QPointF, v2:QPointF, x:float, y:float ):
     else:
         return west( v2, v1, x, y)
 
+class MiniMapSignals(QObject):
+    readData = pyqtSignal()
 
-'''
-  /**
-   * @return {boolean} true if (x,y) is west of the line segment connecting A and B
-   */
-  function west(A, B, x, y) {
-      if (A.y <= B.y) {
-          if (y <= A.y || y > B.y ||  x >= A.x && x >= B.x) {
-              return false;
-          } else if (x < A.x && x < B.x) {
-              return true;
-          } else {
-              return (y - A.y) / (x - A.x) > (B.y - A.y) / (B.x - A.x);
-          }
-      } else {
-          return west(B, A, x, y);
-      }
-  }
-}
-'''
+class MiniMap(QWidget):
+    def __init__(self, sweeper: Sweeper, parent=None):
+        super(MiniMap, self).__init__(parent)
+        #self.setAttribute(Qt.WA_TranslucentBackground)
+        self.sweeper = sweeper
+        self.sweeper.changeLocation.connect( self.drawHudLocRect )
+        self.signals = MiniMapSignals()
+        self.signals.readData.connect(self.readData)
 
-
-
-
-class PaletteSignals(QObject):
-    clear = pyqtSignal()
-    setLand = pyqtSignal( list, list )
-    drawLoc = pyqtSignal( tuple )
-
-class MapPalette(QWidget):
-    def __init__(self, parent=None):
-        QWidget.__init__(self, parent)
         self._paintcallCnt = 0
-
         self._drawflag = False
         self.lands = None
         self.mapSize = [1200, 1200]
-        self.penColor = QColor(0, 0, 0, 255)
-
-        self.rectFillColor = QColor(255, 255, 0, 255)
-        self.rectPenColor = QColor(255, 255, 255, 255)
-
+        self.server = 1947
         self.viewRect = None
         self._rectflag = False
 
-        self.signals = PaletteSignals()
-        self.signals.clear.connect( self.clearMap )
-        self.signals.setLand.connect( self.setMapData)
-        self.signals.drawLoc.connect( self.drawCurrLoc )
+        self.initColor()
 
+        self.setMinimumHeight(300)
+        self.show()    
 
-    def drawCurrLoc( self, t ):
-        self.viewRect = t
-        self._rectflag = True
-        self.repaint()
-        
-
+    def drawHudLocRect( self, t ):
+        server, x, y = t
+        if hasattr(self, 'lands') and self.lands is not None and server == self.server:
+            for land in self.lands:
+                try:
+                    if rayCastingCheck( land['boundary'], float(y), float(x)):
+                        name_kr = str(land['name']['kor'])
+                        print( f'aa{name_kr}' )
+                        break
+                except KeyError:
+                    pass
+            self.viewRect = (x-15,y-10,30,20)
+            self._rectflag = True
+            self.repaint()
+  
+    def initColor(self):
+        self.penColor = QColor(0, 0, 0, 255)
+        self.rectFillColor = QColor(255, 255, 0, 255)
+        self.rectPenColor = QColor(255, 255, 255, 255)
+  
     def clearMap(self):
         self._rectflag = False
         self.viewRect = None
-        self.repiant
+        self.repaint()
 
     def setMapData( self, lands, mapSize):
         self.lands = lands
@@ -117,10 +87,8 @@ class MapPalette(QWidget):
         self._drawflag = True
         self.repaint()
     
-
     def paintEvent(self, event):
 
-        
         if self._drawflag and self.lands is not None:
             self._paintcallCnt += 1
             print( 'paint count: ' + str(self._paintcallCnt))
@@ -138,6 +106,8 @@ class MapPalette(QWidget):
             
             qp = QPainter()
             qp.begin(self)
+            qp.translate(self.rect().bottomLeft())
+            qp.scale(1.0,-1.0)
             qp.setRenderHint(QPainter.Antialiasing, True)
             qp.setPen(QPen(self.penColor,5))
             for i in range( 0, len(self.lands) ):
@@ -156,85 +126,12 @@ class MapPalette(QWidget):
                 qp.setBrush(self.rectFillColor)
                 x, y, w, h = self.viewRect
                 rx = int( x*rescaleRatio)
-                ry = int( (self.mapSize[1] -y)*rescaleRatio)
+                ry = int( y*rescaleRatio)
                 rw = int( w*rescaleRatio)
                 rh = int( h*rescaleRatio)
                 qp.drawRect(rx,ry,rw,rh)
             qp.end()
-
-class MiniMap(QMainWindow):
-    def __init__(self, signId, amuSignals, sweeper: Sweeper, mutex:Lock, parent=None):
-        QMainWindow.__init__(self, parent)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.palette = MapPalette(self)
-        self.setCentralWidget(self.palette)
-
-        self.createActions()
-        self.createToolBar()
-
-        self.amuSign = signId
-        self.amuSignals = amuSignals
-        amuSignals.hideSign.connect(self.toggleWindow)
-        amuSignals.closeSign.connect(self.requestClose)
-
-        self.sweeper = sweeper
-        self.sweeper.changeLocation.connect( self.drawHudLocRect )
-
-        self._closeflag = False
-
-        self.server = 1947
-
-    def drawHudLocRect( self, t ):
-        server, x, y = t
-        if hasattr(self, 'lands') and self.lands is not None and server == self.server:
-            for land in self.lands:
-                try:
-                    if rayCastingCheck( land['boundary'], float(y), float(x)):
-                        name_kr = str(land['name']['kor'])
-                        print( f'aa{name_kr}' )
-                        break
-                except KeyError:
-                    pass
-            
-            self.palette.signals.drawLoc.emit( (x-15,y-10,30,20) )
-            
-    def requestClose( self ):
-        self._closeflag = True
-        self.close()
-    
-    def toggleWindow( self, sign, hide):
-        if sign == self.amuSign:
-            if hide:
-                self.hide()
-            else:
-                self.show()
-
-    def createActions(self):
-        self.loadAction = QAction(self)
-        self.loadAction.setText('&load')
-
-        self.loadAction.triggered.connect(self.readData)
-
-
-    def createToolBar(self):
-        toolBar = self.addToolBar("minimap")
-        self.addToolBar(toolBar)
-
-        toolBar.addAction(self.loadAction)
-
-
-    '''
-    from json to python
-    object -> dict
-    array -> list (not tuple!! in opposite cate, it's possible)
-    string -> str
-    number(int) -> int
-    number(real) -> float
-    true -> True
-    false -> False
-    null -> None
-    '''
-    
+             
     def readData(self):
         source_path = Path(__file__).resolve()
         source_dir = source_path.parent
@@ -299,26 +196,21 @@ class MiniMap(QMainWindow):
                                                 if isinstance( point, dict): # {'x':100, 'y':200}
                                                     p = list(point.values()) # [100, 200]
                                                     if len(p) == 2:
-                                                        points += (QPointF( p[0], mapSize[1] - p[1] ),)
+                                                        points += (QPointF( p[0], p[1] ),)
                                             lands.append( {'boundary':QPolygonF(points), 
                                                             'color':QColor(color), 
                                                             'name': landName} )
                                 self.lands = lands
-                                self.palette.signals.setLand.emit(lands, mapSize)
+                                self.setMapData( lands, mapSize )
                         
                         except KeyError:
                             pass
-                
-
-    def hideEvent(self, event):
-        print( str(self.__class__.__name__) + ' disappeared')
-        return super().hideEvent(event)
-    
-    def closeEvent(self, event):
-        if self._closeflag is False:
-            self.amuSignals.closedSign.emit( self.amuSign )
-            self.hide()
-            event.ignore()
-        else:
-            print( str(self.__class__.__name__) + ' closed')
-            event.accept()
+    '''from json to python
+    object -> dict
+    array -> list (not tuple!! in opposite cate, it's possible)
+    string -> str
+    number(int) -> int
+    number(real) -> float
+    true -> True
+    false -> False
+    null -> None'''

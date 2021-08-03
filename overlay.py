@@ -1,6 +1,6 @@
-from threading import Lock
+import logging
 from PyQt5.QtWidgets import QMainWindow, QWidget
-from PyQt5.QtCore import QPointF, QRectF, QWaitCondition, QObject, Qt, pyqtSlot
+from PyQt5.QtCore import QPointF, QRectF, QRunnable, QWaitCondition, QObject, Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF
 from sweeper import Sweeper, SweeperWorker
 
@@ -33,10 +33,20 @@ class TranslucentWidget(QWidget):
 
         qp.end()
 
+class OverlaySignals(QObject):
+    #amu->overlay
+    systemEndSign = pyqtSignal() 
+    toggleSign = pyqtSignal()
+
+    #overlay-> amu
+    closeSign = pyqtSignal()
+    hideSign = pyqtSignal(bool)
+
+
 class Overlay(QMainWindow):
     BORDER_THICKNESS = 12
 
-    def __init__(self, tracker, signId, amuSignals, sweeper: Sweeper, mutex: Lock, parent=None):
+    def __init__(self, sweeper: Sweeper, parent=None):
         QMainWindow.__init__(self, parent, Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
 
         widget = QWidget(self)
@@ -54,22 +64,18 @@ class Overlay(QMainWindow):
         self.pvPoint:list = None # pivot points form resizng << type is list for [mutable] parameter passing
         self._setGeoMode:int = 0
 
-        self.amuSign:int = signId
-        self.amuSignals:QObject = amuSignals
-        amuSignals.hideSign.connect(self.toggleWindow)
-        amuSignals.closeSign.connect(self.requestClose)
+        self.signals = OverlaySignals()
+        self.signals.toggleSign.connect(self.toggleWindow)
+        self.signals.systemEndSign.connect(self.requestClose)
 
         self._closeflag:bool = False
 
         self.sweeper:Sweeper = sweeper
-        self.mutex:Lock = mutex
         self.bbox:tuple = None
         self._bboxFlag:bool = False
 
         self.rects:list = list()
         self._rectflag = False
-
-        self.tracker = tracker
 
         self.sweeper.changeBbox.connect( self.setBbox )
         self.sweeper.addRect.connect( self.addRect )
@@ -79,16 +85,17 @@ class Overlay(QMainWindow):
         self._captureflag = False
 
     def addRect(self, box:tuple, r:int, g:int, b:int, alpha:int, thickness:int):
-
-        #print(f'addRect: {box}')
-        x1, y1, x2, y2 = box
-        w = x2 - x1
-        h = y2 - y1
-        rect = QRectF(float(x1+ self.bbox[0]), float(y1+ self.bbox[1]), float(w), float(h))
-
-        self.rects += ( (rect, QPen(QColor(r,g,b,alpha), thickness ) ), )
-        self._rectflag = True
-        self.repaint()
+        try:
+            x1, y1, x2, y2 = box
+            w = x2 - x1
+            h = y2 - y1
+            if self.bbox is not None:
+                rect = QRectF(float(x1+ self.bbox[0]), float(y1+ self.bbox[1]), float(w), float(h))
+                self.rects += ( (rect, QPen(QColor(r,g,b,alpha), thickness ) ), )
+                self._rectflag = True
+                self.repaint()
+        except Exception:
+            logging.exception('add rect')
     
     @pyqtSlot(QWaitCondition)
     def clearRects( self, waitCondition:QWaitCondition ):
@@ -100,8 +107,8 @@ class Overlay(QMainWindow):
         
 
     def requestDetectScreenWork( self ):
-        worker = SweeperWorker(self.sweeper, self.getInnerRect(), work=SweeperWorker.WORK_DETECT_SCREEN )
-        self.amuSignals.queuing.emit(worker)
+        worker:QRunnable = SweeperWorker(self.sweeper, self.getInnerRect(), work=SweeperWorker.WORK_DETECT_SCREEN )
+        self.sweeper.queuing.emit(worker)
 
     def getInnerRect(self):
         rect = self.geometry().getRect()
@@ -120,19 +127,19 @@ class Overlay(QMainWindow):
         self._bboxFlag = True
         self.repaint()
 
-        x,y,w,h = self.getInnerRect()
-        #self.tracker.setBoundary.emit((x,y,x+w,y+h))
+        #x,y,w,h = self.getInnerRect()
 
     def requestClose( self ):
         self._closeflag = True
         self.close()
     
-    def toggleWindow( self, sign, hide):
-        if sign == self.amuSign:
-            if hide:
-                self.hide()
-            else:
-                self.show()
+    def toggleWindow( self ):
+        if self.isHidden():
+            self.show()
+            self.signals.hideSign.emit(False)
+        else:
+            self.hide()
+            self.signals.hideSign.emit(True)
 
     def mousePressEvent(self, event):
         
@@ -366,7 +373,7 @@ class Overlay(QMainWindow):
 
         if self._captureflag and self.conditionForCapture is not None:
             self.conditionForCapture.wakeAll()
-            print( 'overlay cleared: ready for capture ')
+            logging.debug( 'Overlay cleared: ready for capture ')
             self._captureflag = False
             self.conditionForCapture = None
 
@@ -396,7 +403,7 @@ class Overlay(QMainWindow):
     
     def closeEvent(self, event):
         if self._closeflag is False:
-            self.amuSignals.closedSign.emit( self.amuSign )
+            self.signals.closeSign.emit()
             self.hide()
             event.ignore()
         else:

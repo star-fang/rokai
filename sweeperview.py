@@ -1,34 +1,52 @@
-from PyQt5.QtWidgets import QMainWindow, QProgressBar, QSlider, QTextEdit, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
-from PyQt5.QtCore import QObject, Qt
+from threading import Lock
+from PyQt5.QtWidgets import QDialog, QPlainTextEdit, QProgressBar, QSlider, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt5.QtCore import QObject, Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
 from sweeper import Sweeper, SweeperWorker, SweeperWorkFlow
-from threading import Lock
 from matplotlib import pyplot as plt
 
-class SweeperView(QMainWindow):
+class LoggingDialog( QDialog ):
+    def __init__(self, painTextEdit:QPlainTextEdit, parent=None):
+        super().__init__(parent)
+        self.initUI(painTextEdit)
+    
+    def initUI( self, pte ):
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel('Log'))
+        layout.addWidget(pte)
+        self.setLayout(layout)
+    
+class SweeperViewSignals(QObject):
+    hideSign = pyqtSignal()
+    showLogger = pyqtSignal()
+
+class SweeperView(QWidget):
     Button_LOCATION = 2
     Button_CRACK = 3
     Button_FIND = 4
-    def __init__(self, signId:int, amuSignals: QObject, sweeper: Sweeper, mutex:Lock, parent=None):
-        QMainWindow.__init__(self, parent)
+    def __init__(self, sweeper: Sweeper, parent=None):
+        QWidget.__init__(self, parent)
         self.sweeper = sweeper
         self.initUi()
         
-        self.amuSignals = amuSignals
-        amuSignals.hideSign.connect(self.toggleWindow)
-        amuSignals.closeSign.connect(self.requestClose)
-
-        self._closeflag = False
-        self.signId = signId
-        self.mutex = mutex
-
+        self.signals = SweeperViewSignals()
+        self.signals.showLogger.connect(lambda: self.showLoggingDialog() )
+        self.plainTextLogger = QPlainTextEdit()
         self.connectSweeperSignals()
+
+    def showLoggingDialog(self):
+        dialog = LoggingDialog(self.plainTextLogger, parent=self)
+        dialog.show()
+        dialog.raise_()
+
+    def loggingPlainText(self, msg):
+        with Lock():
+            self.plainTextLogger.appendPlainText(msg)
 
     def connectSweeperSignals( self ):
         
-        self.sweeper.reportState.connect(lambda report, add:self.setStateText(report, add))
-        self.sweeper.changeScreen.connect( lambda mat:self.setScreenImage(mat) )
+        self.sweeper.logInfo.connect( lambda msg: self.loggingPlainText(msg) )
         self.sweeper.changeTemplate.connect( lambda mat:self.setTemplateImage(mat) )
         self.sweeper.changeTmRatio.connect( lambda v:self.setRatioVal(v) )
         self.sweeper.changeTmRotate.connect( lambda v:self.setAngleVal(v) )
@@ -39,63 +57,25 @@ class SweeperView(QMainWindow):
         plt.hist( mat.ravel(), 256, [0,256])
         plt.show()
 
-    def requestClose( self ):
-        self._closeflag = True
-        self.close()
-    
-    def toggleWindow( self, sign, hide):
-        if sign == self.signId:
-            if hide:
-                self.hide()
-            else:
-                self.show()
-
-    def hideEvent(self, event):
-        print( str(self.__class__.__name__) + ' disappeared')
-        return super().hideEvent(event)
-    
-    def closeEvent(self, event):
-        if self._closeflag is False:
-            self.amuSignals.closedSign.emit( self.signId )
-            self.hide()
-            event.ignore()
-        else:
-            print( str(self.__class__.__name__) + ' closed')
-            event.accept()
-
     def initUi(self):
-        widget = QWidget()
-        self.setCentralWidget(widget)
 
-        self.screenView = QLabel()
         self.templateView = QLabel()
-        self.stateText = QTextEdit()
-        self.resolutionText = QLabel('640 X 480')
-
         self.tm_ratioBar = QProgressBar()
+        self.tm_ratioBar.setTextVisible(False)
         self.tm_ratioBar.setMinimum(0)
         self.tm_ratioBar.setMaximum(100)
         self.tm_angleBar = QProgressBar()
+        self.tm_angleBar.setTextVisible(False)
         self.tm_angleBar.setMinimum(0)
         self.tm_angleBar.setMaximum(360)
 
         layout = QVBoxLayout()
-        
-        self.w, self.h = self.geometry().getRect()[2:]
-        self.screenView.setFixedSize( 360, 270 )
-
-        layout.addWidget(self.screenView)
-        layout.addWidget(self.resolutionText)
-        layout.addWidget(self.stateText)
-
         hbox = QHBoxLayout()
         hbox.addWidget( self.templateView)
         vbox_rr = QVBoxLayout()
         hbox_ra = QHBoxLayout()
         hbox_ro = QHBoxLayout()
-        hbox_ra.addWidget(QLabel('RA: '))
         hbox_ra.addWidget(self.tm_ratioBar)
-        hbox_ro.addWidget(QLabel('RO: '))
         hbox_ro.addWidget(self.tm_angleBar)
         vbox_rr.addLayout(hbox_ra)
         vbox_rr.addLayout(hbox_ro)
@@ -103,14 +83,13 @@ class SweeperView(QMainWindow):
         layout.addLayout( hbox )
 
         hbox_flow = QHBoxLayout()
-        hbox_flow.addWidget(QLabel('Workflow: '))
         self.flow_slider = QSlider(Qt.Orientation.Horizontal)
         self.flow_slider.setMinimum(1)
         self.flow_slider.setMaximum(3)
         self.flow_slider.setValue(1)
         self.flow_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.flow_slider.setTickInterval(1)
-        self.flow_btn = QPushButton('start')
+        self.flow_btn = QPushButton('RUN')
         self.flow_btn.setFixedHeight(30)
         self.flow_btn.clicked.connect( lambda: self.onFlowButtonClicked( self.flow_slider.value() ) )
         hbox_flow.addWidget(self.flow_slider)
@@ -118,15 +97,14 @@ class SweeperView(QMainWindow):
         layout.addLayout( hbox_flow )
 
         hbox_works = QHBoxLayout()
-        hbox_works.addWidget(QLabel('Works: '))
-        self.location_btn = QPushButton('위치 확인')
+        self.location_btn = QPushButton('# X Y')
         self.location_btn.setFixedHeight(30)
         self.location_btn.clicked.connect( lambda: self.onWorkButtonClicked(self.Button_LOCATION))
-        self.find_btn = QPushButton('루비 찾기')
+        self.find_btn = QPushButton('RUBY')
         self.find_btn.setFixedHeight(30)
         self.find_btn.clicked.connect( lambda: self.onWorkButtonClicked( self.Button_FIND))
         self.find_btn.setEnabled(False)
-        self.crack_btn = QPushButton('인증 풀기')
+        self.crack_btn = QPushButton('CRACK')
         self.crack_btn.setFixedHeight(30)
         self.crack_btn.clicked.connect( lambda: self.onWorkButtonClicked( self.Button_CRACK))
         self.crack_btn.setEnabled(False)
@@ -134,26 +112,25 @@ class SweeperView(QMainWindow):
         hbox_works.addWidget(self.find_btn)
         hbox_works.addWidget(self.crack_btn)
         layout.addLayout( hbox_works )
-
-        self.centralWidget().setLayout(layout)
+        self.setLayout(layout)
 
     def requestWorker( self, *args, work: int ): # for runnable worker
         if( work > -1 ):
             worker = SweeperWorker( self.sweeper, args, work = work  )
             worker.signals.finished.connect(lambda: self.onWorkFinished(work))
-            self.amuSignals.queuing.emit(worker)
+            self.sweeper.queuing.emit(worker)
 
     def onFlowButtonClicked( self, level ):
         self.flow_btn.setEnabled(False)
         workflow = SweeperWorkFlow( self.sweeper, level = level ) 
         workflow.signals.finished.connect(lambda: self.flow_btn.setEnabled(True))
-        self.amuSignals.queuing.emit(workflow)
+        self.sweeper.queuing.emit(workflow)
 
     def onWorkButtonClicked( self, which  ):
         work = -1
         if which == self.Button_LOCATION:
             self.location_btn.setEnabled(False)
-            work = SweeperWorker.WORK_WHERE
+            work = SweeperWorker.WORK_COORDINATES
         elif which == self.Button_CRACK:
             self.crack_btn.setEnabled(False)
             work = SweeperWorker.WORK_CRACK
@@ -164,7 +141,7 @@ class SweeperView(QMainWindow):
         self.requestWorker( work = work )
 
     def onWorkFinished( self, work ):
-        if( work == SweeperWorker.WORK_WHERE):
+        if( work == SweeperWorker.WORK_COORDINATES):
             self.location_btn.setEnabled(True)
         elif( work == SweeperWorker.WORK_CRACK ):
             self.setAngleVal(0)
@@ -184,30 +161,11 @@ class SweeperView(QMainWindow):
             self.find_btn.setEnabled(False)
             self.crack_btn.setEnabled(False)
 
-    def setScreenImage(self, mat):
-        if mat is None:
-            self.screenView.clear()
-            return
-        pixmap = mat2QPixmap( mat )
-        sWidth,sHeight = self.screenView.geometry().getRect()[2:]
-        
-        if bool( sWidth > pixmap.width() ) and bool( sHeight > pixmap.height() ):
-            self.screenView.setPixmap( pixmap )
-        elif pixmap.width() * 2 > pixmap.height() * 3:
-            self.screenView.setPixmap( pixmap.scaledToWidth( sWidth ) )
-        else:
-            self.screenView.setPixmap( pixmap.scaledToHeight( sHeight ) )
-
     def setTemplateImage(self, mat):
         pixmap = mat2QPixmap( mat )
         self.templateView.setFixedHeight( 30 )
         self.templateView.setPixmap( pixmap.scaledToHeight( 30 ) )
-        
-    def setStateText(self, text, add=True):
-        if add:
-            text = f'{self.stateText.toPlainText()}\n{text}'
-        self.stateText.setText(text)
-    
+         
     def setRatioVal(self, val):
         self.tm_ratioBar.setValue(val)
 

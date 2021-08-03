@@ -1,3 +1,4 @@
+import logging
 import imutils
 import pytesseract
 import numpy as np
@@ -179,8 +180,9 @@ def ocr_preprocessing( src_gray:np.ndarray, height = 64, stackAxis=0, inv = True
             
             if hasattr(onChange_ksize, 'dst'):
                 return onChange_ksize.dst, resizeRatio
-        except Exception as e:
-            print( 'orc preprocess fail: %s' % e )
+        except Exception:
+            logging.exception('ocr preprocssing')
+            #print( 'orc preprocess fail: %s' % e )
         return None, 0
 
 class OcrEngine:

@@ -43,3 +43,17 @@ def checkCurrentTroops( self, img_src:np.ndarray=None, img_gray:np.ndarray=None)
                         print( f't count: {troops_txt}')
                 except Exception as e:
                     print( f'exception while count troops:{e}')
+
+def setScreenImage(self, mat):
+        if mat is None:
+            self.screenView.clear()
+            return
+        pixmap = mat2QPixmap( mat )
+        sWidth,sHeight = self.screenView.geometry().getRect()[2:]
+        
+        if bool( sWidth > pixmap.width() ) and bool( sHeight > pixmap.height() ):
+            self.screenView.setPixmap( pixmap )
+        elif pixmap.width() * 2 > pixmap.height() * 3:
+            self.screenView.setPixmap( pixmap.scaledToWidth( sWidth ) )
+        else:
+            self.screenView.setPixmap( pixmap.scaledToHeight( sHeight ) )
