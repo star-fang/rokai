@@ -1,13 +1,17 @@
 import json
+from re import sub as regexreplace
+from math import cos, sin, radians, pi
 from PyQt5.QtWidgets import  QWidget
 from PyQt5.QtCore import QObject, QPointF, pyqtSignal
 from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from pathlib import Path
 from sweeper import Sweeper
+from log import makeLogger
 
 def rayCastingCheck( land:QPolygonF, lat:float, lng:float):
+    if land is None:
+        return False
     count  = 0
-    
     bLen = land.count()
     for i in range(0, bLen):
         vertex1:QPointF = land.at(i)
@@ -32,64 +36,84 @@ def west( v1:QPointF, v2:QPointF, x:float, y:float ):
         return west( v2, v1, x, y)
 
 class MiniMapSignals(QObject):
+    #amu -> minimap
     readData = pyqtSignal()
+    landChecked = pyqtSignal(int, bool)
+
+    #minimap -> amu
+    landLoaded = pyqtSignal(int, dict)
 
 class MiniMap(QWidget):
-    def __init__(self, sweeper: Sweeper, parent=None):
+    def __init__(self, logSignal, sweeper: Sweeper, parent=None):
         super(MiniMap, self).__init__(parent)
         #self.setAttribute(Qt.WA_TranslucentBackground)
         self.sweeper = sweeper
-        self.sweeper.changeLocation.connect( self.drawHudLocRect )
+        self.sweeper.changeLocation.connect( self.evalLocation )
         self.signals = MiniMapSignals()
         self.signals.readData.connect(self.readData)
+        self.signals.landChecked.connect(self.checkLand)
+        self.logger = makeLogger(logSignal.logInfo, 'mini')
 
         self._paintcallCnt = 0
         self._drawflag = False
-        self.lands = None
-        self.mapSize = [1200, 1200]
-        self.server = 1947
-        self.viewRect = None
+        self.lands = dict()
+        self.mapSize = list()
+        self.server:str = ''
+        self.viewRect = list()
         self._rectflag = False
 
         self.initColor()
 
         self.setMinimumHeight(300)
-        self.show()    
+        self.show()
 
-    def drawHudLocRect( self, t ):
-        server, x, y = t
-        if hasattr(self, 'lands') and self.lands is not None and server == self.server:
-            for land in self.lands:
+    def checkLand(self, id:int, checked:bool ):
+        if id in self.lands.keys():
+            land = self.lands[id]
+            if land is not None and isinstance(land, dict):
+                land['checked'] = checked
+
+    def evalLocation( self, loc:tuple, degree:float ):
+        self.clearRect()
+        server, x, y = loc
+        if regexreplace('\D','',self.server) in str(server):
+            checkedLandsList = list(filter( lambda land: isinstance(land,dict) and land.get('checked', False),self.lands.values()))
+            for land in checkedLandsList:
                 try:
-                    if rayCastingCheck( land['boundary'], float(y), float(x)):
-                        name_kr = str(land['name']['kor'])
-                        print( f'aa{name_kr}' )
-                        break
+                    if isinstance( land, dict ):
+                        landName = land.get('name')
+                        if isinstance( landName, dict ):
+                            name = landName.get('kor')
+                            self.logger.debug( f'check:{str(name)}')
+                        if rayCastingCheck( land.get('boundary'), float(y), float(x)):
+                            self.logger.debug( f'x{x}, y{y} is valid position')
+                            cos()
+                            nextX = x + a
+                            nextY = y + b
+                            self.viewRect.append( x - 15 )
+                            self.viewRect.append( y - 10 )
+                            self.viewRect.append( 30 )
+                            self.viewRect.append( 20 )
+                            break
                 except KeyError:
                     pass
-            self.viewRect = (x-15,y-10,30,20)
-            self._rectflag = True
-            self.repaint()
+            
+        self._rectflag = True
+        self.repaint()
   
     def initColor(self):
         self.penColor = QColor(0, 0, 0, 255)
         self.rectFillColor = QColor(255, 255, 0, 255)
         self.rectPenColor = QColor(255, 255, 255, 255)
   
-    def clearMap(self):
+    def clearRect(self):
         self._rectflag = False
-        self.viewRect = None
+        self.viewRect.clear()
         self.repaint()
-
-    def setMapData( self, lands, mapSize):
-        self.lands = lands
-        self.mapSize = mapSize
-        self._drawflag = True
-        self.repaint()
-    
+        
     def paintEvent(self, event):
 
-        if self._drawflag and self.lands is not None:
+        if self._drawflag and self.lands is not None and len(self.lands) > 0:
             self._paintcallCnt += 1
             print( 'paint count: ' + str(self._paintcallCnt))
             s = self.size()
@@ -110,18 +134,19 @@ class MiniMap(QWidget):
             qp.scale(1.0,-1.0)
             qp.setRenderHint(QPainter.Antialiasing, True)
             qp.setPen(QPen(self.penColor,5))
-            for i in range( 0, len(self.lands) ):
-                land = self.lands[i]['boundary']
-                color = self.lands[i]['color']
-                qp.setBrush(color)
-                trans = QTransform()
-                rescaled = trans.scale(rescaleRatio, rescaleRatio).map(land)
-                path = QPainterPath()
-                path.addPolygon(rescaled)
-                qp.fillPath(path, qp.brush())
-                qp.drawPolygon(rescaled)
+            for id, land in self.lands.items():
+                if isinstance(land, dict):
+                    boundary = land.get('boundary', QPointF())
+                    color = land.get('color',QColor('#FFFFFF'))
+                    qp.setBrush(color)
+                    trans = QTransform()
+                    rescaled = trans.scale(rescaleRatio, rescaleRatio).map(boundary)
+                    path = QPainterPath()
+                    path.addPolygon(rescaled)
+                    qp.fillPath(path, qp.brush())
+                    qp.drawPolygon(rescaled)
 
-            if self._rectflag and self.viewRect is not None:
+            if self._rectflag and self.viewRect is not None and len(self.viewRect) == 4:
                 qp.setPen(self.rectPenColor)
                 qp.setBrush(self.rectFillColor)
                 x, y, w, h = self.viewRect
@@ -131,13 +156,18 @@ class MiniMap(QWidget):
                 rh = int( h*rescaleRatio)
                 qp.drawRect(rx,ry,rw,rh)
             qp.end()
-             
+    
+    def clearData(self):
+        self._drawflag = False
+        self.lands.clear()
+        self.mapSize.clear()
+
     def readData(self):
+        self.clearData()
         source_path = Path(__file__).resolve()
         source_dir = source_path.parent
 
         name_dir = str(source_dir) + '/assets/name.json'
-
         name_dict = dict()
         with open(name_dir,'r', encoding='utf-8') as name_json:
             name_python = json.load(name_json)
@@ -152,7 +182,7 @@ class MiniMap(QWidget):
                         except KeyError:
                             pass
         file_dir = str(source_dir) + '/assets/vertex1947.json'
-        print( f'{file_dir} loaded' )
+        self.logger.info( f'{file_dir} loaded' )
         with open(file_dir,'r', encoding='utf-8') as src_json:
             src_python = json.load(src_json)  
             if isinstance( src_python, list ):
@@ -160,34 +190,18 @@ class MiniMap(QWidget):
                     elmt = src_python[i]
                     if isinstance(elmt, dict):
                         try:
-                            name = str( elmt['name'] )
-                            data = elmt['data']
-
-                            if 'server' in elmt:
-                                server = int( elmt['server'] )
-                            else:
-                                server = 1947
-
-                            if name == 'land' and isinstance(data, list):
-                                print( 'server: ' + str(server))
-                                self.server = server
-                                if 'size' in elmt:
-                                    mapSize = elmt['size']
-                                else:
-                                    print( 'size no exist')
-                                    mapSize = [1200, 1200]
-
-                                lands = [] # list of 'j' polygons ( contains 'k' points) 
+                            name = str( elmt.get('name','') )
+                            if name == 'land':
+                                self.server = str( elmt.get('server') )
+                                data:list = elmt.get('data',list())
+                                self.mapSize = elmt.get('size',[1200,1200])
+                                #= [] # list of 'j' polygons ( contains 'k' points)
                                 for j in range(0, len(data)):
                                     land = data[j]
-
                                     if isinstance(land, dict) and 'boundary' in land:
-                                        color = str(land['color']) if 'color' in land else '#FFFFFF'
-                                        landName = dict()
-                                        if 'nameId' in land:
-                                            nameId = int(land['nameId'])
-                                            if nameId in name_dict:
-                                                landName = name_dict[ nameId ]
+                                        color = land.get('color', '#FFFFFF')
+                                        landId = land.get('id', 129000+j)
+                                        landName:dict = name_dict.get(land.get('nameId',-1),dict())
                                         boundaries = land['boundary']
                                         if isinstance(boundaries, list):
                                             points = tuple() # tuple of QPointF(s)
@@ -197,14 +211,15 @@ class MiniMap(QWidget):
                                                     p = list(point.values()) # [100, 200]
                                                     if len(p) == 2:
                                                         points += (QPointF( p[0], p[1] ),)
-                                            lands.append( {'boundary':QPolygonF(points), 
-                                                            'color':QColor(color), 
-                                                            'name': landName} )
-                                self.lands = lands
-                                self.setMapData( lands, mapSize )
-                        
-                        except KeyError:
-                            pass
+                                            self.lands[landId] = {'boundary':QPolygonF(points), \
+                                                                  'color':QColor(color),\
+                                                                  'name': landName}
+                                            self.signals.landLoaded.emit(landId, landName)
+                                self._drawflag = True
+                                self.repaint()
+                            break
+                        except Exception:
+                            self.logger.debug('exception while read data',stack_info=True)
     '''from json to python
     object -> dict
     array -> list (not tuple!! in opposite cate, it's possible)

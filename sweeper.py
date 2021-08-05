@@ -1,4 +1,3 @@
-import logging
 import cv2
 import numpy as np
 import imutils
@@ -10,6 +9,7 @@ from PyQt5.QtCore import QMutex, QObject, QRunnable, QWaitCondition, pyqtSignal
 from pathlib import Path
 from recognizing import OcrEngine, ocr_preprocessing, hsvMasking, template_match, detectShape
 from log import makeLogger
+from unpredictable import MT19937Generator
 
 TH_BUTTON0 = 100
 TH_BUTTON1= 180
@@ -37,11 +37,8 @@ def rotateImage( image, angle ):
     rotated = cv2.warpAffine(image, rotationMatrix, image.shape[1::-1], flags=cv2.INTER_LINEAR )
     return rotated
 
-class SweeperWorkerSignals(QObject):
-    finished = pyqtSignal()
 
-class SweeperWorkFlowSignals(QObject):
-    finished = pyqtSignal()
+FinSignal = type("FinSignal", (QObject,), {'finished': pyqtSignal()})
 
 class SweeperWorkFlow(QRunnable):
     FLOW_IDF_STATE = 0
@@ -66,7 +63,6 @@ class SweeperWorkFlow(QRunnable):
                         whereResult:bool = whereFuture.result()
                         robotResult:bool = robotFuture.result()
 
-
                         if whenResult and whereResult and not robotResult:
                             if self.level > 1 and self.sweeper.determineFieldWork(coordsResult):
                                 self.sweeper.findRuby(img_gray)
@@ -75,15 +71,17 @@ class SweeperWorkFlow(QRunnable):
                     self.sweeper.identifyDialog( dialogTuple, img_src, img_gray )
 
                 self.sweeper.logger.info(f'---Workflow level{self.level} finished')
-
-        self.signals.finished.emit()
+        try:
+            self.finSignal.finished.emit()
+        except AttributeError:
+            self.sweeper.logger.debug( 'work flow fin' )
 
     def __init__(self, sweeper, *args, flow:int = 0, level:int=1):
         QRunnable.__init__(self)
         self.flow = flow
         self.sweeper:Sweeper = sweeper
         self.level = level
-        self.signals = SweeperWorkFlowSignals()
+        self.finSignal = FinSignal()
         self.args = args
 
 class SweeperWorker(QRunnable):
@@ -135,13 +133,16 @@ class SweeperWorker(QRunnable):
             self.sweeper.crackRobotCheck()
         elif( self.work == self.WORK_DETECT_SCREEN):
             self.sweeper.detectScreen(self.args)
-        self.signals.finished.emit()
+        try:
+            self.finSignal.finished.emit()
+        except AttributeError:
+            self.sweeper.logger.debug( 'worker fin' )
 
     def __init__(self, sweeper, *args, work:int = 0):
         QRunnable.__init__(self)
         self.work = work
-        self.sweeper = sweeper
-        self.signals = SweeperWorkerSignals()
+        self.sweeper:Sweeper = sweeper
+        self.finSignal = FinSignal()
         self.args = args
         #if args is not None and len(args)> 0:
         #    print( f'args of worker: {args}')
@@ -161,30 +162,49 @@ class Sweeper( QObject ):
     DIALOG_RUBY = 2
     DIALOG_UNKNOWN = 3
     INIT_STATE = 9
-    
-    changeLocation = pyqtSignal(tuple) # to minimap
+
+    # minimap
+    changeLocation = pyqtSignal(tuple, float, float) # location, dreiction and random to minimap
+    evalLocation = pyqtSignal( float ) # direction from minimap
+
+    # to sweeper view
     changeState = pyqtSignal(int)
     changeTemplate = pyqtSignal( np.ndarray ) # image matrix
     changeTmRatio = pyqtSignal(int)
-    changeTmRotate = pyqtSignal(int) 
-    changeBbox = pyqtSignal(tuple) # draw overlay bbox
+    changeTmRotate = pyqtSignal(int)
+    plotPlt = pyqtSignal( np.ndarray ) # draw plt in main thread
+    
+    # to overlay
+    changeBbox = pyqtSignal(tuple) # draw overlay boundary
     addRect = pyqtSignal(tuple, int, int ,int ,int, int) # draw ovetlay rects, rgba, thickness
     clearRects = pyqtSignal(QWaitCondition)
-    plotPlt = pyqtSignal( np.ndarray )
-    queuing = pyqtSignal( QRunnable )
-    logInfo = pyqtSignal(str)
 
-    def __init__(self, parent = None):
+    # to main ui
+    queuing = pyqtSignal( QRunnable )
+    
+
+    def __init__(self, logSignal, parent = None):
         QObject.__init__(self, parent)
-        self.logger = makeLogger(signal=self.logInfo, name='sweeper')
+        self.logger = makeLogger(signal=logSignal.logInfo, name='sweeper')
         self.bbox:tuple = None
         self.loadTmImages()
         self.crack_tm_box_list = list()
         self.initStateFlags()
         self.initWorkFlowData()
         self.initImageRecognizingModules()
-        self.logger.info('program launched')
+        self.randomGenerator = MT19937Generator()
+
+        self.waitForEvalLoc = QWaitCondition()
+        self.direction: float = self.randomGenerator.generateRandomFloat(max=360.0) # 0.0 ~ 360.0
+        self.evalLocation.connect(lambda a: self.changeDirection( a ))
         
+    def changeDirection( self, angle:float):
+
+        if angle < 0: # out of boundary -> go home and decide direction
+            self.direction = self.randomGenerator.generateRandomFloat(max=360.0)
+        else: # change direction and move
+            self.direction = angle
+        self.waitForEvalLoc.wakeAll()
 
     def initImageRecognizingModules(self, tmMethodName:str='cv2.TM_CCOEFF_NORMED' ):
 
@@ -193,7 +213,6 @@ class Sweeper( QObject ):
         except Exception as e:
             self.tmMethod = cv2.TM_CCOEFF_NORMED
             self.logger.debug('exception while load tmMethod', stack_info=True)
-            logging.exception('load tm method')
 
         self.ocr = OcrEngine('-l eng+kor --oem 1 --psm3') #default config
         #self.mnist = MnistCnnModel()
@@ -266,7 +285,7 @@ class Sweeper( QObject ):
                 pyautogui.click()
                 return True
         except Exception:
-            logging.exception('checkRobotBtnAppear')
+            self.logger.debug('checkRobotBtnAppear', stack_info= True)
         return False
 
     def checkFieldOrHome(self, img_gray:np.ndarray = None):
@@ -308,7 +327,7 @@ class Sweeper( QObject ):
                 return True
 
         except Exception as e:
-            logging.exception('where')
+            self.logger.debug( 'where', stack_info=True)
         self.logger.info( 'where: none' )
         self.state_where = self.WHERE_NONE
         return False
@@ -336,54 +355,58 @@ class Sweeper( QObject ):
                         self.addRect.emit( bbox,255,0,0,255, 2  )
                         bw = x2-bx
                         bh = y2-by
-                        cbox = (bx + bw , by + int(0.15*bh), bx+int(2.2*bw), by + int(0.9*bh) )
+                        cbox = (bx + bw , by + int(0.1*bh), bx+int(2.2*bw), by + int(0.9*bh) )
                         coords_part_gray = img_gray[cbox[1]:cbox[3], cbox[0]:cbox[2]]
                         self.addRect.emit( cbox,255,0,255, 200, 2  )
             
                         dst, r = ocr_preprocessing(src_gray=coords_part_gray, height=64, adjMode=False)
 
                         if dst is not None:
-                            coords_txt = self.ocr.read(dst,config='-l eng --oem 1 --psm 13')
-                            coords_txt = coords_txt.replace('\n','')
-                            self.logger.debug( f'ocr result: {coords_txt}' )
+                            coords_txt = self.ocr.read(dst,config='-l eng --oem 1 --psm 13').strip()
 
                             txt = re.sub('\D',' ', coords_txt)
-                            split = re.split('\s+', txt)
-                            split = [e for e in split if e != '']
-
-                            self.logger.debug( f'location(ocr): {coords_txt}' )
+                            split = [e for e in re.split('\s+', txt) if e != '']
+                            self.logger.info( f'location(ocr): {coords_txt}' )
                             if( len(split) == 3):
                                 digits = tuple()
                                 for i in range(0,3):
                                     digits += ( int(split[i]), )
-                                self.changeLocation.emit(digits)
-                                self.logger.info(f'location: #{digits[0]} x{digits[1]} y{digits[2]}')
+                                mutex = QMutex()
+                                if mutex.tryLock(5000):
+                                    try:
+                                        dddd
+                                        self.changeLocation.emit(digits, self.direction)
+                                        self.waitForEvalLoc.wait(mutex, 5000)
+                                    finally:
+                                        mutex.unlock()
                                 return True
                     except Exception as e:
                         self.logger.debug('location error', stack_info=True)
-                        logging.exception('location' )
         self.logger.info( f'location: none' )
         return False
             
     def captureScreen( self ):
         try:
             waitCondition = QWaitCondition()
+            self.logger.info('Sweeper wait for overlay clear')
             mutex = QMutex()
-
-            self.initStateFlags()
-            self.clearRects.emit(waitCondition)
-
-            mutex.lock()
-            waitCondition.wait(mutex)
-            mutex.unlock()
-            # delete overlay componenets, move mouse to right lower part
-            img_pil = ImageGrab.grab(bbox=self.bbox)
-            img_src = np.array(img_pil)
-            img_gray = cv2.cvtColor(img_src, cv2.COLOR_BGR2GRAY)
-            return (img_src, img_gray)
+            if mutex.tryLock( 5000 ):
+                try:
+                    self.initStateFlags()
+                    self.clearRects.emit(waitCondition)
+                    waitCondition.wait(mutex, 5000)
+                finally:
+                    mutex.unlock()
+                    self.logger.info('Sweeper ready to capture')
+                    img_pil = ImageGrab.grab(bbox=self.bbox)
+                    img_src = np.array(img_pil)
+                    img_gray = cv2.cvtColor(img_src, cv2.COLOR_BGR2GRAY)
+                    return (img_src, img_gray)
+            else:
+                self.logger.debug('capture failure: deadlock')
         except Exception as e:
-            self.logger.debug('capture failure', stack_info=True)
-            logging.exception('capture')
+            self.logger.debug('exception while caputre', stack_info=True)
+        self.logger.info('capture: none')
         return None
 
     def identifyDialog(self, dialogInfo:tuple, img_src:np.ndarray=None, img_gray:np.ndarray=None):
@@ -457,7 +480,6 @@ class Sweeper( QObject ):
                                     fitContours += ( (mask_idf,contour),)
             except Exception as e:
                 self.logger.debug('exception while find buttons', stack_info=True)
-                logging.exception( 'find buttons')
                             
             return (fitContours, px, py)
                     
@@ -569,7 +591,6 @@ class Sweeper( QObject ):
             return True
         except Exception as e:
             self.logger.debug('when error', stack_info=True)
-            logging.exception('when')
         self.state_when = self.WHEN_NONE
         self.logger.info( f'when: none' )
         return False
@@ -651,7 +672,7 @@ class Sweeper( QObject ):
                 if match_result is None:
                     match_result, img_th = rubyMatch( img_gray, self.template_ruby_night, TH_RUBY_NIGHT )
         except AttributeError:
-            logging.exception( 'find ruby')
+            self.logger.debug( 'find ruby', stack_info = True)
             
         if match_result is not None and img_th is not None:
             matched = cv2.cvtColor(img_th, cv2.COLOR_GRAY2RGB)
@@ -730,7 +751,6 @@ class Sweeper( QObject ):
           return True
       except Exception as e:
           self.logger.debug( 'analyzing failure', stack_info=True)
-          logging.exception( 'analyze dialog')
       return False
 
     def crackRobotCheck( self, img_src:np.ndarray = None, img_gray:np.ndarray = None, adjustMode:bool = False ):

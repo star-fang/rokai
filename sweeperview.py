@@ -1,52 +1,23 @@
-from threading import Lock
-from PyQt5.QtWidgets import QDialog, QPlainTextEdit, QProgressBar, QSlider, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
-from PyQt5.QtCore import QObject, Qt, pyqtSignal
+from PyQt5.QtWidgets import QProgressBar, QSlider, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
 from sweeper import Sweeper, SweeperWorker, SweeperWorkFlow
-from matplotlib import pyplot as plt
-
-class LoggingDialog( QDialog ):
-    def __init__(self, painTextEdit:QPlainTextEdit, parent=None):
-        super().__init__(parent)
-        self.initUI(painTextEdit)
-    
-    def initUI( self, pte ):
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel('Log'))
-        layout.addWidget(pte)
-        self.setLayout(layout)
-    
-class SweeperViewSignals(QObject):
-    hideSign = pyqtSignal()
-    showLogger = pyqtSignal()
+from matplotlib import pyplot as plt # thread - unsafe
+from log import makeLogger
 
 class SweeperView(QWidget):
     Button_LOCATION = 2
     Button_CRACK = 3
     Button_FIND = 4
-    def __init__(self, sweeper: Sweeper, parent=None):
+    def __init__(self, logSignal, sweeper: Sweeper, parent=None):
         QWidget.__init__(self, parent)
         self.sweeper = sweeper
         self.initUi()
-        
-        self.signals = SweeperViewSignals()
-        self.signals.showLogger.connect(lambda: self.showLoggingDialog() )
-        self.plainTextLogger = QPlainTextEdit()
         self.connectSweeperSignals()
-
-    def showLoggingDialog(self):
-        dialog = LoggingDialog(self.plainTextLogger, parent=self)
-        dialog.show()
-        dialog.raise_()
-
-    def loggingPlainText(self, msg):
-        with Lock():
-            self.plainTextLogger.appendPlainText(msg)
+        self.logger = makeLogger(logSignal.logInfo, 'sview')
 
     def connectSweeperSignals( self ):
-        
-        self.sweeper.logInfo.connect( lambda msg: self.loggingPlainText(msg) )
         self.sweeper.changeTemplate.connect( lambda mat:self.setTemplateImage(mat) )
         self.sweeper.changeTmRatio.connect( lambda v:self.setRatioVal(v) )
         self.sweeper.changeTmRotate.connect( lambda v:self.setAngleVal(v) )
@@ -58,7 +29,6 @@ class SweeperView(QWidget):
         plt.show()
 
     def initUi(self):
-
         self.templateView = QLabel()
         self.tm_ratioBar = QProgressBar()
         self.tm_ratioBar.setTextVisible(False)
@@ -117,13 +87,19 @@ class SweeperView(QWidget):
     def requestWorker( self, *args, work: int ): # for runnable worker
         if( work > -1 ):
             worker = SweeperWorker( self.sweeper, args, work = work  )
-            worker.signals.finished.connect(lambda: self.onWorkFinished(work))
+            try:
+                worker.finSignal.finished.connect(lambda: self.onWorkFinished(work))
+            except AttributeError:
+                self.logger.debug('exception while connect fin sign')
             self.sweeper.queuing.emit(worker)
 
     def onFlowButtonClicked( self, level ):
         self.flow_btn.setEnabled(False)
-        workflow = SweeperWorkFlow( self.sweeper, level = level ) 
-        workflow.signals.finished.connect(lambda: self.flow_btn.setEnabled(True))
+        workflow = SweeperWorkFlow( self.sweeper, level = level )
+        try:
+            workflow.finSignal.finished.connect(lambda: self.flow_btn.setEnabled(True))
+        except AttributeError:
+            self.logger.debug('exception while connect fin sign')
         self.sweeper.queuing.emit(workflow)
 
     def onWorkButtonClicked( self, which  ):

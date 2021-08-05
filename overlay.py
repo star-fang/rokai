@@ -1,8 +1,9 @@
 import logging
 from PyQt5.QtWidgets import QMainWindow, QWidget
 from PyQt5.QtCore import QPointF, QRectF, QRunnable, QWaitCondition, QObject, Qt, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF
+from PyQt5.QtGui import QColor, QPaintEvent, QPainter, QPainterPath, QPen, QPolygonF, QMouseEvent, QResizeEvent
 from sweeper import Sweeper, SweeperWorker
+from log import makeLogger
 
 class TranslucentWidget(QWidget):
     def __init__(self, parent=None):
@@ -46,7 +47,7 @@ class OverlaySignals(QObject):
 class Overlay(QMainWindow):
     BORDER_THICKNESS = 12
 
-    def __init__(self, sweeper: Sweeper, parent=None):
+    def __init__(self, logSignal, sweeper: Sweeper, parent=None):
         QMainWindow.__init__(self, parent, Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
 
         widget = QWidget(self)
@@ -63,6 +64,8 @@ class Overlay(QMainWindow):
 
         self.pvPoint:list = None # pivot points form resizng << type is list for [mutable] parameter passing
         self._setGeoMode:int = 0
+
+        self.logger = makeLogger(logSignal.logInfo, 'overlay')
 
         self.signals = OverlaySignals()
         self.signals.toggleSign.connect(self.toggleWindow)
@@ -95,7 +98,7 @@ class Overlay(QMainWindow):
                 self._rectflag = True
                 self.repaint()
         except Exception:
-            logging.exception('add rect')
+            self.logger.debug('exception while draw rect', stack_info=True)
     
     @pyqtSlot(QWaitCondition)
     def clearRects( self, waitCondition:QWaitCondition ):
@@ -141,7 +144,7 @@ class Overlay(QMainWindow):
             self.hide()
             self.signals.hideSign.emit(True)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QMouseEvent):
         
         s = self.size()
         lW = s.width()
@@ -197,7 +200,7 @@ class Overlay(QMainWindow):
         self.rects.clear()
         return super().mousePressEvent(event)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: QMouseEvent):
         self._setGeoMode = 0 
         self.pvPoint = None
         self._closepopup()
@@ -213,7 +216,7 @@ class Overlay(QMainWindow):
         -133, +93
         '''
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QMouseEvent):
 
         '''
         1 2 3
@@ -288,7 +291,7 @@ class Overlay(QMainWindow):
                 if move and nextW > 8*self.BORDER_THICKNESS and nextH > 8*self.BORDER_THICKNESS:
                     self.setGeometry( nextX, nextY, nextW, nextH )
             except UnboundLocalError:
-                print( 'local variable referenced before assignmen')
+                logging.exception( 'exception while dragging')
 
             
             self.pvPoint[2] = egX
@@ -334,8 +337,7 @@ class Overlay(QMainWindow):
             trapezoid_list.append( trapezoid )
         return trapezoid_list  
 
-    def paintEvent(self, event):
-        #print('paint overlay')
+    def paintEvent(self, event:QPaintEvent):
         s = self.size()
         lW = s.width()
         lH = s.height()
@@ -371,20 +373,18 @@ class Overlay(QMainWindow):
 
         qp.end()
 
+
         if self._captureflag and self.conditionForCapture is not None:
             self.conditionForCapture.wakeAll()
-            logging.debug( 'Overlay cleared: ready for capture ')
+            self.logger.info('Overlay cleared: ready for capture')
             self._captureflag = False
             self.conditionForCapture = None
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QResizeEvent):
         geoRect = self.geometry().getRect()
         if self._popflag:
             self._popframe.move(0, 0)
             self._popframe.resize(geoRect[2], geoRect[3])
-
-    def moveEvent(self, event):
-        return super().moveEvent(event)
     
     def _onpopup(self):
         self._popframe = TranslucentWidget(self.centralWidget())
@@ -398,7 +398,7 @@ class Overlay(QMainWindow):
         self._popflag = False
 
     def hideEvent(self, event):
-        print( str(self.__class__.__name__) + ' disappeared')
+        self.logger.info('hide overlay')
         return super().hideEvent(event)
     
     def closeEvent(self, event):
@@ -407,5 +407,5 @@ class Overlay(QMainWindow):
             self.hide()
             event.ignore()
         else:
-            print( str(self.__class__.__name__) + ' closed')
+            self.logger.debug('close overlay')
             event.accept()

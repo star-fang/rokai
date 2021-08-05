@@ -55,8 +55,6 @@ def template_match(template:np.ndarray, resized:np.ndarray, method:int, mThresho
                 top_left = max_loc
                 match_val = max_val
                 targetExist = bool(match_val > mThreshold)
-                
-        #print(str(match_val) + str(targetExist))
             
         if( targetExist ):
                 bottom_right = (top_left[0] + tw, top_left[1] + th)
@@ -170,7 +168,6 @@ def ocr_preprocessing( src_gray:np.ndarray, height = 64, stackAxis=0, inv = True
             onChange_ksize.it = kwargs.get('it',0)
             onChange_ksize( 0, adj = adjMode )
             if adjMode:
-                print('adj...')
                 cv2.createTrackbar('bk', 'coord', onChange_ksize.bkf, 20, lambda k: onChange_ksize( k, 0, adj = True ))
                 cv2.createTrackbar('rk1', 'coord', onChange_ksize.rkf1, 10, lambda k: onChange_ksize( k, 1, adj = True))
                 cv2.createTrackbar('rk2', 'coord', onChange_ksize.rkf2, 25, lambda k: onChange_ksize( k, 2, adj = True))
@@ -182,7 +179,6 @@ def ocr_preprocessing( src_gray:np.ndarray, height = 64, stackAxis=0, inv = True
                 return onChange_ksize.dst, resizeRatio
         except Exception:
             logging.exception('ocr preprocssing')
-            #print( 'orc preprocess fail: %s' % e )
         return None, 0
 
 class OcrEngine:
@@ -211,13 +207,7 @@ class OcrEngine:
                print(ss.getText())
 
     def read(self,im,**kwargs):
-        for key, val in kwargs.items():
-            if key=='config':
-                config=val
-                break
-        #print(config)
-            
-        #config lang oem psm
-        ocr = pytesseract.image_to_string(im, config=config)
-        return ocr
+        config = kwargs.get('config', self.config)
+        ocr = str(pytesseract.image_to_string(im, config=config))
+        return ocr.encode('ascii', 'ignore').decode()
     
