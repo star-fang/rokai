@@ -8,7 +8,6 @@ class LogSignalHandler( Handler ):
         self.signal = signal
     
     def emit(self, record):
-        super().emit( record )
         msg = self.format(record)
         if self.signal is not None:
             self.signal.emit(msg)

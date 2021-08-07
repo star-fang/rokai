@@ -164,7 +164,7 @@ class Sweeper( QObject ):
     INIT_STATE = 9
 
     # minimap
-    changeLocation = pyqtSignal(tuple, float, float) # location, dreiction and random to minimap
+    changeLocation = pyqtSignal(tuple, float) # location, dreiction to minimap
     evalLocation = pyqtSignal( float ) # direction from minimap
 
     # to sweeper view
@@ -374,14 +374,15 @@ class Sweeper( QObject ):
                                 mutex = QMutex()
                                 if mutex.tryLock(5000):
                                     try:
-                                        dddd
+                                        self.logger.debug(f'degree before:{self.direction}')
                                         self.changeLocation.emit(digits, self.direction)
                                         self.waitForEvalLoc.wait(mutex, 5000)
+                                        self.logger.debug(f'degree after:{self.direction}')
                                     finally:
                                         mutex.unlock()
                                 return True
                     except Exception as e:
-                        self.logger.debug('location error', stack_info=True)
+                        self.logger.debug(f'location error {e}', stack_info=True)
         self.logger.info( f'location: none' )
         return False
             
