@@ -1,17 +1,24 @@
-from PyQt5.QtWidgets import QAction, QCheckBox, QDialog, QLabel, QMainWindow, QMenu, QMenuBar, QPlainTextEdit, QVBoxLayout, QWidget, QPushButton, QWidgetAction
-from PyQt5.QtCore import QMutex, QObject, QThreadPool, Qt, pyqtSignal
-from sweeper import Sweeper
+from PyQt5.QtWidgets import QAction, QCheckBox, QDialog, QLabel, QMainWindow, QMenu, QMenuBar, QPlainTextEdit, QVBoxLayout, QWidget, QWidgetAction
+from PyQt5.QtCore import QMutex, QObject, Qt, pyqtSignal
+from coloratura import Coloratura
 from minimap import MiniMap
 from overlay import Overlay
-from sweeperview import SweeperView
+from coloratura_view import ColoraturaView
 from log import makeLogger
 
-LogSignal = type("LogSignal", (QObject,), {'logInfo': pyqtSignal(str)})
 
+CloseSignal = type("CloseSignal", (QObject,), {'close': pyqtSignal(),'closed': pyqtSignal()})
 class LoggingDialog( QDialog ):
     def __init__(self, painTextEdit:QPlainTextEdit, parent=None):
         super().__init__(parent)
         self.initUI(painTextEdit)
+        self._closeflag= False
+        self.closeSignal = CloseSignal()
+        self.closeSignal.close.connect(self.closeByMenuButton)
+    
+    def closeByMenuButton(self):
+        self._closeflag = True
+        self.close()
     
     def initUI( self, pte ):
         layout = QVBoxLayout(self)
@@ -19,17 +26,27 @@ class LoggingDialog( QDialog ):
         layout.addWidget(pte)
         self.setLayout(layout)
 
+    def closeEvent(self, evt):
+        if not self._closeflag:
+            self.closeSignal.closed.emit()
+        return super().closeEvent(evt)
+
+
+Signals = type("LogSignal", (QObject,), {'logInfo': pyqtSignal(str), 'showMessage':pyqtSignal(str)})
 class RokAMU(QMainWindow):
     def __init__(self, systemResolution: list, parent = None):
         QMainWindow.__init__(self, parent)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.threadPool = QThreadPool( parent = self )
-        self.threadPool.setMaxThreadCount(10)
         self.resolutionOption = self.initResolutionOption( systemResolution )
 
-        self.logSignal = LogSignal()
-        self.logger = makeLogger(signal=self.logSignal.logInfo, name='amu')
-        self.sweeper = Sweeper(self.logSignal)
+        self.signals = Signals()
+        self.statusBar().showMessage('hello')
+        self.statusBar().setStyleSheet('QStatusBar{padding-left:8px;background:rgba(20,20,20,30);color:white;font-weight:bold;}')
+        self.signals.showMessage.connect(lambda m: self.statusBar().showMessage(m))
+        self.logger = makeLogger(signal=self.signals.logInfo, name='amu')
+        self.coloratura = Coloratura(self.signals.logInfo)
+
+        #self.startKeyControl()
         self.createSubWidgets()
         self.connectSubSignals()
         self.initUI(systemResolution)
@@ -39,7 +56,6 @@ class RokAMU(QMainWindow):
         self.createLandToolBar()
 
         self.logger.info('program launched')
-        
 
     def loggingPlainText(self, msg):
         mutex = QMutex()
@@ -48,11 +64,6 @@ class RokAMU(QMainWindow):
             mutex.unlock()
         else:
             self.logger.debug('plain text logging failure: deadlock')
-    
-    def showLoggingDialog(self):
-        dialog = LoggingDialog(self.plainTextLogger, parent=self)
-        dialog.show()
-        dialog.raise_()
         
     def initResolutionOption(self, resolution, marginRate = 0.7):
         detectionPartLimit = (2*resolution[0]//3, 2*resolution[1]//3)
@@ -64,24 +75,22 @@ class RokAMU(QMainWindow):
             return (480,360,marginRate)
 
     def closeEvent(self, e):
-        self.sweeper.deleteLater()
-        self.threadPool.releaseThread()
+        self.coloratura.deleteLater()
         self.overlay.signals.systemEndSign.emit()
         self.logger.debug('amu closed')
         return super().closeEvent(e)
 
     def createSubWidgets( self ):
         self.plainTextLogger = QPlainTextEdit()
-        self.sweeperView:SweeperView = SweeperView( self.logSignal, self.sweeper, parent = self) # sub widget
-        self.rokMiniMap:MiniMap = MiniMap( self.logSignal, self.sweeper, parent = self ) # sub widget
-        self.overlay:Overlay = Overlay( self.logSignal, self.sweeper , parent = self) # sub window
+        self.coloraturaView:ColoraturaView = ColoraturaView( self.signals.logInfo, self.signals.showMessage, self.coloratura, parent = self) # sub widget
+        self.rokMiniMap:MiniMap = MiniMap( self.signals.logInfo, self.coloratura, parent = self ) # sub widget
+        self.overlay:Overlay = Overlay( self.signals.logInfo, self.coloratura , parent = self) # sub window
 
-    def connectSubSignals( self):
+    def connectSubSignals( self ):
         try:
-            self.logSignal.logInfo.connect( lambda msg: self.loggingPlainText(msg))
+            self.signals.logInfo.connect( lambda msg: self.loggingPlainText(msg))
         except AttributeError:
             pass
-        self.sweeper.queuing.connect( lambda r: self.threadPool.start(r))
         self.rokMiniMap.signals.landLoaded.connect( lambda id, name: self.createLandAction(id, name))
 
     def initUI(self, systemResolution):
@@ -92,29 +101,15 @@ class RokAMU(QMainWindow):
         initHeight = self.resolutionOption[1]/self.resolutionOption[2]
 
         self.overlay.setGeometry( 50, 50, initWidth - 50 , initHeight - 50 )
-        self.overlay.hide()
         self.overlay.requestDetectScreenWork()
 
         vbox = QVBoxLayout(self.centralWidget())
         vbox.addWidget(self.rokMiniMap)
-        vbox.addWidget(self.sweeperView)
-        
-        def toggleButton( button: QPushButton, clicked:bool):
-            button.setChecked(clicked )
-            self.overlay_btn.setStyleSheet('background-color: lightblue' if clicked \
-                                            else 'background-color: gray')
-        self.overlay_btn = QPushButton('오버레이')
-        self.overlay_btn.setCheckable(True)
-        self.overlay_btn.clicked.connect(lambda: self.overlay.signals.toggleSign.emit())
-        self.overlay.signals.hideSign.connect( lambda hide: toggleButton(self.overlay_btn, not hide))
-        vbox.addWidget(self.overlay_btn)
-
+        vbox.addWidget(self.coloraturaView)
         
         self.move( systemResolution[0] - self.size().width(), 0)
         self.show()
-
-        self.overlay_btn.click()
-
+    
     def createActions(self):
         def loadData():
             self.landToolBar.clear()
@@ -124,26 +119,43 @@ class RokAMU(QMainWindow):
         self.loadAction.triggered.connect(lambda: loadData())
 
         self.showLoggerAction = QAction(self)
+        self.showLoggerAction.setCheckable(True)
         self.showLoggerAction.setText('&LOGGER')
-        self.showLoggerAction.triggered.connect(self.showLoggingDialog)
+        def logginDialog( checked:bool ):
+            if checked:
+                logginDialog.dialog = LoggingDialog(self.plainTextLogger, parent=self)
+                logginDialog.dialog.closeSignal.closed.connect( lambda: self.showLoggerAction.setChecked(False))
+                logginDialog.dialog.show()
+                logginDialog.dialog.raise_()
+            else:
+                if isinstance(logginDialog.dialog, LoggingDialog):
+                    logginDialog.dialog.closeSignal.close.emit()
+        logginDialog.dialog = None
+        self.showLoggerAction.triggered.connect(lambda checked: logginDialog(checked))
+        self.showOverlayAction = QAction(self)
+        self.showOverlayAction.setCheckable(True)
+        self.showOverlayAction.setText('&OVERLAY')
+        self.showOverlayAction.triggered.connect(lambda: self.overlay.signals.toggleSign.emit())
+        self.overlay.signals.hideSign.connect( lambda hide: self.showOverlayAction.setChecked( not hide) )
+        self.showOverlayAction.setChecked( True )
     
-
     def createMenus(self):
         self.fileMenu = QMenu()
         self.fileMenu.setTitle('&File')
         self.fileMenu.setStyleSheet(    'QMenu::item{\
-                                            color: rgb(0,0,255);\
+                                            color: rgb(0,0,0);\
                                         }')
         self.fileMenu.addAction(self.loadAction)
 
         self.widgetMenu = QMenu()
         self.widgetMenu.setTitle('&Widget')
-        self.widgetMenu.addAction(self.showLoggerAction)    
+        self.widgetMenu.addAction(self.showLoggerAction)
+        self.widgetMenu.addAction(self.showOverlayAction)    
     
     def createMenuBar(self):
         menubar = QMenuBar()
         menubar.setStyleSheet(    'QMenuBar::item{\
-                                            color: rgb(0,0,255);\
+                                            color: rgb(0,0,0);\
                                         }')
         menubar.addMenu(self.fileMenu)
         menubar.addMenu(self.widgetMenu)                     

@@ -1,28 +1,32 @@
 from PyQt5.QtWidgets import QProgressBar, QSlider, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QThreadPool, Qt, pyqtBoundSignal
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
-from sweeper import Sweeper, SweeperWorker, SweeperWorkFlow
+from coloratura import Coloratura, ColoraturaProcessRunner
 from matplotlib import pyplot as plt # thread - unsafe
 from log import makeLogger
 
-class SweeperView(QWidget):
+class ColoraturaView(QWidget):
     Button_LOCATION = 2
     Button_CRACK = 3
     Button_FIND = 4
-    def __init__(self, logSignal, sweeper: Sweeper, parent=None):
+    WORKFLOW_LEVELS = ['상태', '마우스 동작', '루비찾기', '인증풀기', '반복']
+    def __init__(self, logSignal:pyqtBoundSignal, statusSignal:pyqtBoundSignal, coloratura: Coloratura, parent=None):
         QWidget.__init__(self, parent)
-        self.sweeper = sweeper
+        self.coloratura = coloratura
         self.initUi()
-        self.connectSweeperSignals()
-        self.logger = makeLogger(logSignal.logInfo, 'sview')
+        self.connectColoraturaSignals()
+        self.logger = makeLogger(logSignal, 'sview')
+        self.statusMessageSignal = statusSignal
+        self.threadPool = QThreadPool(self)
+        self.threadPool.setMaxThreadCount(1)
 
-    def connectSweeperSignals( self ):
-        self.sweeper.changeTemplate.connect( lambda mat:self.setTemplateImage(mat) )
-        self.sweeper.changeTmRatio.connect( lambda v:self.setRatioVal(v) )
-        self.sweeper.changeTmRotate.connect( lambda v:self.setAngleVal(v) )
-        self.sweeper.changeState.connect( lambda s:self.onStateChanged(s))
-        self.sweeper.plotPlt.connect( self.histShow )
+    def connectColoraturaSignals( self ):
+        self.coloratura.changeTemplate.connect( lambda mat:self.setTemplateImage(mat) )
+        self.coloratura.changeTmRatio.connect( lambda v:self.setRatioVal(v) )
+        self.coloratura.changeTmRotate.connect( lambda v:self.setAngleVal(v) )
+        self.coloratura.changeState.connect( lambda s:self.onStateChanged(s))
+        self.coloratura.plotPlt.connect( self.histShow )
 
     def histShow( self, mat ):
         plt.hist( mat.ravel(), 256, [0,256])
@@ -55,10 +59,11 @@ class SweeperView(QWidget):
         hbox_flow = QHBoxLayout()
         self.flow_slider = QSlider(Qt.Orientation.Horizontal)
         self.flow_slider.setMinimum(1)
-        self.flow_slider.setMaximum(3)
+        self.flow_slider.setMaximum(len(self.WORKFLOW_LEVELS))
         self.flow_slider.setValue(1)
         self.flow_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.flow_slider.setTickInterval(1)
+        self.flow_slider.valueChanged.connect(self.sliderLevelChanged)
         self.flow_btn = QPushButton('RUN')
         self.flow_btn.setFixedHeight(30)
         self.flow_btn.clicked.connect( lambda: self.onFlowButtonClicked( self.flow_slider.value() ) )
@@ -66,71 +71,40 @@ class SweeperView(QWidget):
         hbox_flow.addWidget(self.flow_btn)
         layout.addLayout( hbox_flow )
 
-        hbox_works = QHBoxLayout()
-        self.location_btn = QPushButton('# X Y')
-        self.location_btn.setFixedHeight(30)
-        self.location_btn.clicked.connect( lambda: self.onWorkButtonClicked(self.Button_LOCATION))
-        self.find_btn = QPushButton('RUBY')
-        self.find_btn.setFixedHeight(30)
-        self.find_btn.clicked.connect( lambda: self.onWorkButtonClicked( self.Button_FIND))
-        self.find_btn.setEnabled(False)
-        self.crack_btn = QPushButton('CRACK')
-        self.crack_btn.setFixedHeight(30)
-        self.crack_btn.clicked.connect( lambda: self.onWorkButtonClicked( self.Button_CRACK))
-        self.crack_btn.setEnabled(False)
-        hbox_works.addWidget(self.location_btn)
-        hbox_works.addWidget(self.find_btn)
-        hbox_works.addWidget(self.crack_btn)
-        layout.addLayout( hbox_works )
+        
         self.setLayout(layout)
-
-    def requestWorker( self, *args, work: int ): # for runnable worker
-        if( work > -1 ):
-            worker = SweeperWorker( self.sweeper, args, work = work  )
-            try:
-                worker.finSignal.finished.connect(lambda: self.onWorkFinished(work))
-            except AttributeError:
-                self.logger.debug('exception while connect fin sign')
-            self.sweeper.queuing.emit(worker)
+    
+    def sliderLevelChanged( self, level ):
+        try:
+            self.statusMessageSignal.emit( f'Workflow level{level}: {self.WORKFLOW_LEVELS[level-1]}')
+        except IndexError:
+            pass
 
     def onFlowButtonClicked( self, level ):
         self.flow_btn.setEnabled(False)
-        workflow = SweeperWorkFlow( self.sweeper, level = level )
+        runner = ColoraturaProcessRunner( self.coloratura, level = level )
         try:
-            workflow.finSignal.finished.connect(lambda: self.flow_btn.setEnabled(True))
+            runner.finSignal.finished.connect(lambda: self.flow_btn.setEnabled(True))
+            self.threadPool.start(runner)
         except AttributeError:
+            self.flow_btn.setEnabled(True)
             self.logger.debug('exception while connect fin sign')
-        self.sweeper.queuing.emit(workflow)
-
-    def onWorkButtonClicked( self, which  ):
-        work = -1
-        if which == self.Button_LOCATION:
-            self.location_btn.setEnabled(False)
-            work = SweeperWorker.WORK_COORDINATES
-        elif which == self.Button_CRACK:
-            self.crack_btn.setEnabled(False)
-            work = SweeperWorker.WORK_CRACK
-        elif which == self.Button_FIND:
-            self.find_btn.setEnabled(False)
-            work = SweeperWorker.WORK_RUBY
-
-        self.requestWorker( work = work )
 
     def onWorkFinished( self, work ):
-        if( work == SweeperWorker.WORK_COORDINATES):
+        if( work == ColoraturaWorker.WORK_COORDINATES):
             self.location_btn.setEnabled(True)
-        elif( work == SweeperWorker.WORK_CRACK ):
+        elif( work == ColoraturaWorker.WORK_CRACK ):
             self.setAngleVal(0)
             self.setRatioVal(0)
             self.crack_btn.setEnabled(True)
-        elif( work == SweeperWorker.WORK_RUBY ):
+        elif( work == ColoraturaWorker.WORK_RUBY ):
             self.find_btn.setEnabled(True)
 
     def onStateChanged(self, state):
-        if( state == Sweeper.NO_DIALOG ):
+        if( state == Coloratura.NO_DIALOG ):
             self.crack_btn.setEnabled(False)
             self.find_btn.setEnabled(True)
-        elif( state == Sweeper.DIALOG_ROBOT ):
+        elif( state == Coloratura.DIALOG_ROBOT ):
             self.find_btn.setEnabled(False)
             self.crack_btn.setEnabled(True)
         else:

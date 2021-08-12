@@ -1,8 +1,7 @@
 import sys
-
-import pyautogui
+from pyautogui import size
 from PyQt5.QtWidgets import QApplication
-from mainui import RokAMU
+from amu import RokAMU
 
 if __name__ == '__main__':
     print(sys.argv)
@@ -10,7 +9,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(True)
 
-    systemResolution = pyautogui.size() #get screensize
+    systemResolution = size() #get screensize
     print(f"width={systemResolution[0]}\theight={systemResolution[1]}")
     
     rokAiMainUi = RokAMU(systemResolution)

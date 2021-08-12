@@ -28,6 +28,22 @@ engine mode (--oem) options
 2	Legacy + LSTM mode only
 3	By Default, based on what is currently available
 '''
+def findContourList(img, *args):
+    if len(args) < 1:
+        return None
+    if (int(cv2.__version__[0]) > 3):
+        contours, hierarchy = cv2.findContours(img, mode=args[0], method=args[1])
+    else:
+        im2, contours, hierarchy = cv2.findContours(img, mode=args[0], method=args[1])
+
+    return contours
+
+def rotateImage( image, angle ):
+    center = tuple(np.array(image.shape[1::-1]) / 2)
+    rotationMatrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+    rotated = cv2.warpAffine(image, rotationMatrix, image.shape[1::-1], flags=cv2.INTER_LINEAR )
+    return rotated
+
 
 def detectShape(contour, epsilon = 0.04):
         peri = cv2.arcLength(contour, True)
@@ -182,7 +198,7 @@ def ocr_preprocessing( src_gray:np.ndarray, height = 64, stackAxis=0, inv = True
         return None, 0
 
 class OcrEngine:
-    def __init__(self, config):
+    def __init__(self, config = '--oem 1 --psm 3'):
         self.config = config
     
     '''def preprocessing(self, img_src, showProcess=False, blockSize=11, C=2):

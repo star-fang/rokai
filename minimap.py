@@ -1,11 +1,11 @@
 import json
 from re import sub as regexreplace
-from math import cos, sin, radians, pi
+from math import cos, sin, radians, atan2, degrees
 from PyQt5.QtWidgets import  QWidget
-from PyQt5.QtCore import QLineF, QObject, QPointF, QRectF, pyqtSignal
+from PyQt5.QtCore import QLineF, QObject, QPointF, QRectF, pyqtBoundSignal, pyqtSignal
 from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from pathlib import Path
-from sweeper import Sweeper
+from coloratura import Coloratura
 from log import makeLogger
 def intersctionPoint( boundary:QPolygonF, line: QLineF):
     bLen = boundary.count()
@@ -52,15 +52,15 @@ class MiniMapSignals(QObject):
     landLoaded = pyqtSignal(int, dict)
 
 class MiniMap(QWidget):
-    def __init__(self, logSignal, sweeper: Sweeper, parent=None):
+    def __init__(self, logSignal:pyqtBoundSignal, coloratura: Coloratura, parent=None):
         super(MiniMap, self).__init__(parent)
         #self.setAttribute(Qt.WA_TranslucentBackground)
-        self.sweeper = sweeper
-        self.sweeper.changeLocation.connect( self.evalLocation )
+        self.coloratura = coloratura
+        self.coloratura.changeLocation.connect( self.evalLocation )
         self.signals = MiniMapSignals()
         self.signals.readData.connect(self.readData)
         self.signals.landChecked.connect(self.checkLand)
-        self.logger = makeLogger(logSignal.logInfo, 'mini')
+        self.logger = makeLogger(logSignal, 'mini')
 
         self._paintcallCnt = 0
         self._drawflag = False
@@ -76,6 +76,7 @@ class MiniMap(QWidget):
         self.initColor()
 
         self.setMinimumHeight(300)
+        self.setMinimumWidth(300)
         self.show()
 
     def checkLand(self, id:int, checked:bool ):
@@ -94,59 +95,56 @@ class MiniMap(QWidget):
                 try:
                     if isinstance( land, dict ):
                         landName = land.get('name')
-                        if isinstance( landName, dict ):
-                            name = landName.get('kor')
-                            self.logger.debug( f'check:{str(name)}')
-                            boundary:QPolygonF = land.get('boundary')
-
+                        nameKor = landName.get('kor') if isinstance( landName, dict ) else None
+                        boundary:QPolygonF = land.get('boundary')
                         if rayCastingCheck( boundary, float(y), float(x)):
-                            self.logger.debug( f'x{x}, y{y} is valid position')
-                            rad = radians(deg)
-                            self.logger.debug( f'deg={deg}, rad={rad}')
-                            boundingRect = boundary.boundingRect()
-                            nextX = x + (boundingRect.width()+30) * cos(rad)
-                            nextY = y + (boundingRect.height()+30 ) * sin(rad)
+                            self.logger.debug( f'x{x}, y{y} is in {nameKor}')
 
-                            self.targetPoint = intersctionPoint(boundary, QLineF(x,y,nextX,nextY))
+                            if self.targetPoint is not None:
+                                targetX = self.targetPoint.x()
+                                targetY = self.targetPoint.y()
+                                rad = atan2((targetY - y),(targetX - x))
+                                deg = degrees(rad) % 360
+                                if deg < 0:
+                                    deg += 360
+                            else:
+                                rad = radians(deg)
+                                boundingRect = boundary.boundingRect()
+                                beyondX = x + (boundingRect.width()+30) * cos(rad)
+                                beyondY = y + (boundingRect.height()+30 ) * sin(rad)
+                                self.targetPoint = intersctionPoint(boundary, QLineF(x,y,beyondX,beyondY))
 
+                            arrowXfactor = 25 * cos(rad)
+                            arrowYfactor = 25 * sin(rad)
+                            lwingXfactor = 50 * cos(radians(210 - deg))
+                            lwingYfactor = 50 * sin(radians(30 - deg))
+                            rwingXfactor = 50 * cos(radians(510 - deg))
+                            rwingYfactor = 50 * sin(radians(330 - deg))
 
-                            arrowXfactor = 50 * cos(rad)
-                            arrowYfactor = 50 * sin(rad)
-                            lwingXfactor = 30 * cos(radians(225 - deg))
-                            lwingYfactor = 30 * sin(radians(45-deg))
-                            rwingXfactor = 30 * cos(radians(495 - deg))
-                            rwingYfactor = 30 * sin(radians(315 - deg))
-                            self.logger.debug(f'next: x{nextX}, y{nextY}')
-                            
-
-                            lWingX = x + arrowXfactor + lwingXfactor
-                            lWingY = y + arrowYfactor + lwingYfactor
-
-                            rWingX = x + arrowXfactor + rwingXfactor
-                            rWingY = y + arrowYfactor + rwingYfactor
-
-                            self.arrow.append(x)
-                            self.arrow.append(y)
-                            self.arrow.append(arrowXfactor)
-                            self.arrow.append(arrowYfactor)
-                            self.arrow.append(lWingX)
-                            self.arrow.append(lWingY)
-                            self.arrow.append(rWingX)
-                            self.arrow.append(rWingY)
-
-
-                            
-                            self.sweeper.evalLocation.emit(-1.0)
-                            #self.viewRect.append( x - 15 )
-                            #self.viewRect.append( y - 10 )
-                            #self.viewRect.append( 30 )
-                            #self.viewRect.append( 20 )
+                            if rayCastingCheck( boundary, y + arrowYfactor, x + arrowXfactor ):
+                                self.logger.debug(f'next xy : bounded')
+                                self.arrow.append(x)
+                                self.arrow.append(y)
+                                self.arrow.append(arrowXfactor)
+                                self.arrow.append(arrowYfactor)
+                                self.arrow.append(lwingXfactor)
+                                self.arrow.append(lwingYfactor)
+                                self.arrow.append(rwingXfactor)
+                                self.arrow.append(rwingYfactor)
+                                self._arrowflag = True
+                                self.repaint()
+                                self.coloratura.evalLocation.emit(deg)
+                                return
+                            else:
+                                self.targetPoint = None
+                                self.logger.debug(f'next xy : unbounded')
                             break
                 except KeyError:
                     pass
             
-        self._arrowflag = True
+        self.targetPoint = None
         self.repaint()
+        self.coloratura.evalLocation.emit(-1.0)
   
     def initColor(self):
         self.penColor = QColor(0, 0, 0, 255)
@@ -203,19 +201,16 @@ class MiniMap(QWidget):
                 qp.setPen(QPen(self.arrowColor,3))
                 try:
                     #rationalArrow = [e * 2 for e in ]
-                    x, y, xf, yf, lx, ly, rx, ry = self.arrow
-                    startPointF = QPointF( x - xf, y - yf)
-                    endPointF = QPointF( x + xf, y + yf)
-                    leftPointF = QPointF( lx, ly)
-                    rightPointF = QPointF( rx, ry)
-                    middleRect = QPolygonF(transScale.map(QPolygonF( QRectF(x-15.0, y-15.0,30.0,30.0) ))).boundingRect()
+                    x, y, xf, yf, lxf, lyf, rxf, ryf = self.arrow
+                    middleF = QPointF( x, y)
+                    headF = QPointF( x + xf, y + yf)
+                    leftF = QPointF( x + xf + lxf, y + yf + lyf )
+                    rightF = QPointF( x + xf + rxf, y + yf + ryf )
+                    arrowF:QPolygonF = transScale.map(QPolygonF((middleF, leftF, headF, rightF)))
+                    arrowPath = QPainterPath()
+                    arrowPath.addPolygon(arrowF)
 
-                    qp.setPen(QPen(QColor(255,255,255,200),4))
-                    qp.drawLine( transScale.map(QLineF(startPointF, endPointF)))
-                    qp.drawLine( transScale.map(QLineF( endPointF, leftPointF)))
-                    qp.drawLine( transScale.map(QLineF( endPointF, rightPointF)))
-                    qp.setPen(QPen(QColor(255,0,0,255),3))
-                    qp.drawArc(middleRect, 0, 360*16)
+                    qp.fillPath(arrowPath, QColor(255,0,0,255))
 
                     
                 except TypeError as e:

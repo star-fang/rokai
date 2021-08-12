@@ -1,38 +1,35 @@
 import logging
 from PyQt5.QtWidgets import QMainWindow, QWidget
-from PyQt5.QtCore import QPointF, QRectF, QRunnable, QWaitCondition, QObject, Qt, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QColor, QPaintEvent, QPainter, QPainterPath, QPen, QPolygonF, QMouseEvent, QResizeEvent
-from sweeper import Sweeper, SweeperWorker
+from PyQt5.QtCore import QPointF, QRectF, QThreadPool, QWaitCondition, QObject, Qt, pyqtBoundSignal, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QColor, QPaintEvent, QPainter, QPainterPath, QPen, QPolygonF, QMouseEvent
+from coloratura import Coloratura, DetectScreenWorker
 from log import makeLogger
 
-class TranslucentWidget(QWidget):
+TranslucentSignal = type("TranslucentSignal", (QObject,), {'addRect': pyqtSignal(tuple)})
+class TranslucentRects(QWidget):
     def __init__(self, parent=None):
-        super(TranslucentWidget, self).__init__(parent)
+        super(TranslucentRects, self).__init__(parent)
 
-        # make the window frameless
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
-
-        self.fillColor = QColor(200, 200, 200, 50)
-        self.penColor = QColor("#333333")
-
-        self.popup_fillColor = QColor(240, 240, 240, 255)
-        self.popup_penColor = QColor(200, 200, 200, 255)
+        self.signals = TranslucentSignal()
+        self.signals.addRect.connect(self.addRect)
+        self.rects = list()
+    
+    def addRect( self, rectInfo:tuple):
+        self.rects.append( rectInfo )
+        self.repaint()
 
     def paintEvent(self, event):
-        # This method is, in practice, drawing the contents of
-        # your window.
-
-        # get current window size
-        s = self.size()
-        qp = QPainter()
-        qp.begin(self)
         
-        qp.setPen(self.penColor)
-        qp.setBrush(self.fillColor)
-        qp.drawRect(0, 0, s.width(), s.height())
-
-        qp.end()
+        if  len(self.rects) > 0:
+            qp = QPainter()
+            qp.begin(self)
+            for rect, pen in self.rects:
+                rectPath = QPainterPath()
+                rectPath.addRect( rect )
+                qp.strokePath( rectPath, pen )
+            qp.end()
 
 class OverlaySignals(QObject):
     #amu->overlay
@@ -47,25 +44,26 @@ class OverlaySignals(QObject):
 class Overlay(QMainWindow):
     BORDER_THICKNESS = 12
 
-    def __init__(self, logSignal, sweeper: Sweeper, parent=None):
+    def __init__(self, logSignal:pyqtBoundSignal, coloratura: Coloratura, parent=None):
         QMainWindow.__init__(self, parent, Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
 
         widget = QWidget(self)
         self.setCentralWidget(widget)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
+        self.threadPool = QThreadPool(self)
+        self.threadPool.setMaxThreadCount(1)
+
         self.bboxColor = QColor(0, 255, 0, 200)
         self.boundaryColor = QColor(0, 0, 0, 255)
         self.movingBoundaryColor = QColor(255, 0, 0, 255)
         self.penColor = QColor(200, 200, 200, 10)
 
-        self._popframe:TranslucentWidget = None #shown while resizing
-        self._popflag:bool = False
 
         self.pvPoint:list = None # pivot points form resizng << type is list for [mutable] parameter passing
         self._setGeoMode:int = 0
 
-        self.logger = makeLogger(logSignal.logInfo, 'overlay')
+        self.logger = makeLogger(logSignal, 'overlay')
 
         self.signals = OverlaySignals()
         self.signals.toggleSign.connect(self.toggleWindow)
@@ -73,45 +71,51 @@ class Overlay(QMainWindow):
 
         self._closeflag:bool = False
 
-        self.sweeper:Sweeper = sweeper
-        self.bbox:tuple = None
+        self.coloratura:Coloratura = coloratura
+        self.bbox:list = list()
         self._bboxFlag:bool = False
 
-        self.rects:list = list()
-        self._rectflag = False
-
-        self.sweeper.changeBbox.connect( self.setBbox )
-        self.sweeper.addRect.connect( self.addRect )
-        self.sweeper.clearRects.connect( self.clearRects )
+        self.coloratura.changeBbox.connect( self.setBbox )
+        self.coloratura.addRect.connect( self.showRects )
+        self.coloratura.clearRects.connect( self.clearRects )
 
         self.conditionForCapture:QWaitCondition = None
-        self._captureflag = False
 
-    def addRect(self, box:tuple, r:int, g:int, b:int, alpha:int, thickness:int):
+        self.signals.hideSign.emit(False)
+
+        self._rectsflag = False
+        self.show()
+
+
+    def showRects(self, box:tuple, r:int, g:int, b:int, alpha:int, thickness:int):
         try:
             x1, y1, x2, y2 = box
             w = x2 - x1
             h = y2 - y1
-            if self.bbox is not None:
+            if self._bboxFlag:
+                if not self._rectsflag:
+                    self.rects = TranslucentRects(self.centralWidget())
+                    self.rects.move(0, 0)
+                    self.rects.resize(self.width(), self.height())
+                    self.rects.show()
+                    self._rectsflag = True
                 rect = QRectF(float(x1+ self.bbox[0]), float(y1+ self.bbox[1]), float(w), float(h))
-                self.rects += ( (rect, QPen(QColor(r,g,b,alpha), thickness ) ), )
-                self._rectflag = True
-                self.repaint()
+                self.rects.signals.addRect.emit( (rect, QPen(QColor(r,g,b,alpha), thickness ) ) )
+                
         except Exception:
             self.logger.debug('exception while draw rect', stack_info=True)
     
     @pyqtSlot(QWaitCondition)
-    def clearRects( self, waitCondition:QWaitCondition ):
-        self._rectflag = False
-        self.rects.clear()
-        self._captureflag = True
-        self.conditionForCapture = waitCondition
-        self.repaint()
-        
+    def clearRects( self, waitCondition:QWaitCondition=None ):
+        if self._rectsflag:
+            self.rects.close()
+            self._rectsflag = False
+        if isinstance(waitCondition,QWaitCondition):
+            waitCondition.wakeAll()
 
     def requestDetectScreenWork( self ):
-        worker:QRunnable = SweeperWorker(self.sweeper, self.getInnerRect(), work=SweeperWorker.WORK_DETECT_SCREEN )
-        self.sweeper.queuing.emit(worker)
+        worker = DetectScreenWorker(self.coloratura, self.getInnerRect())
+        self.threadPool.start(worker)
 
     def getInnerRect(self):
         rect = self.geometry().getRect()
@@ -122,11 +126,7 @@ class Overlay(QMainWindow):
         return (x,y,w,h)
 
     def setBbox( self, bbox):
-        x1,y1,x2,y2 = bbox
-        self.bbox = (x1+self.BORDER_THICKNESS,
-            y1+self.BORDER_THICKNESS,
-            x2+self.BORDER_THICKNESS,
-            y2+self.BORDER_THICKNESS)
+        self.bbox = [e+self.BORDER_THICKNESS for e in bbox]
         self._bboxFlag = True
         self.repaint()
 
@@ -192,18 +192,15 @@ class Overlay(QMainWindow):
 
         self._setGeoMode = mode
 
-
-        self._onpopup()
         self._bboxFlag = False
-        self.bbox = None
-        self._rectflag = False
-        self.rects.clear()
+        self.bbox.clear()
+        self.repaint()
+        self.clearRects()
         return super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         self._setGeoMode = 0 
         self.pvPoint = None
-        self._closepopup()
 
         self.requestDetectScreenWork()
         
@@ -302,7 +299,7 @@ class Overlay(QMainWindow):
 
         return super().mouseMoveEvent(event)
 
-    def createBoundaryPolygons( self, bbox:tuple, thickness:int):
+    def createBoundaryPolygons( self, bbox:list, thickness:int):
         #x1,y1,x2,y2
         outP = []
         inP = []
@@ -348,54 +345,24 @@ class Overlay(QMainWindow):
         qp.setPen(QPen(self.penColor,2))
         
         qp.setBrush(self.boundaryColor)
-        outB = self.createBoundaryPolygons((0,0,lW,lH), self.BORDER_THICKNESS)
+        outB = self.createBoundaryPolygons([0,0,lW,lH], self.BORDER_THICKNESS)
         for polygon in outB:
             outPath = QPainterPath()
             outPath.addPolygon(polygon)
             qp.fillPath(outPath, qp.brush())
             qp.drawPolygon(polygon)
 
-        if self._bboxFlag and self.bbox is not None:
+        if self._bboxFlag:
             inB = self.createBoundaryPolygons(self.bbox, 5)
             qp.setBrush(self.bboxColor)
             for polygon in inB:
                 inPath = QPainterPath()
                 inPath.addPolygon(polygon)
                 qp.fillPath(inPath, qp.brush())
-
-        if self._rectflag and self.rects is not None:
-            for rect, pen in self.rects:
-                rectPath = QPainterPath()
-                rectPath.addRect( rect )
-                qp.strokePath( rectPath, pen )
+  
         qp.setBrush(self.movingBoundaryColor)
         qp.fillRect(lW-self.BORDER_THICKNESS, lH-4*self.BORDER_THICKNESS, self.BORDER_THICKNESS, 2*self.BORDER_THICKNESS, qp.brush())
-
         qp.end()
-
-
-        if self._captureflag and self.conditionForCapture is not None:
-            self.conditionForCapture.wakeAll()
-            self.logger.info('Overlay cleared: ready for capture')
-            self._captureflag = False
-            self.conditionForCapture = None
-
-    def resizeEvent(self, event: QResizeEvent):
-        geoRect = self.geometry().getRect()
-        if self._popflag:
-            self._popframe.move(0, 0)
-            self._popframe.resize(geoRect[2], geoRect[3])
-    
-    def _onpopup(self):
-        self._popframe = TranslucentWidget(self.centralWidget())
-        self._popframe.move(0, 0)
-        self._popframe.resize(self.width(), self.height())
-        self._popflag = True
-        self._popframe.show()
-
-    def _closepopup(self):
-        self._popframe.close()
-        self._popflag = False
 
     def hideEvent(self, event):
         self.logger.info('hide overlay')
