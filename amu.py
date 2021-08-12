@@ -1,20 +1,21 @@
 from PyQt5.QtWidgets import QAction, QCheckBox, QDialog, QLabel, QMainWindow, QMenu, QMenuBar, QPlainTextEdit, QVBoxLayout, QWidget, QWidgetAction
-from PyQt5.QtCore import QMutex, QObject, Qt, pyqtSignal
+from PyQt5.QtCore import QMutex, QObject, Qt, pyqtBoundSignal, pyqtSignal
 from coloratura import Coloratura
 from minimap import MiniMap
 from overlay import Overlay
 from coloratura_view import ColoraturaView
-from log import makeLogger
+from pyautogui import size
+from multiprocessing import Queue
+from log import MultiProcessLogging
 
-
-CloseSignal = type("CloseSignal", (QObject,), {'close': pyqtSignal(),'closed': pyqtSignal()})
 class LoggingDialog( QDialog ):
     def __init__(self, painTextEdit:QPlainTextEdit, parent=None):
         super().__init__(parent)
         self.initUI(painTextEdit)
         self._closeflag= False
-        self.closeSignal = CloseSignal()
-        self.closeSignal.close.connect(self.closeByMenuButton)
+        self.closeSignal = type("CloseSignal", (QObject,), {'close': pyqtSignal(),'closed': pyqtSignal()})()
+        if isinstance( self.closeSignal.close, pyqtBoundSignal ):
+            self.closeSignal.close.connect(self.closeByMenuButton)
     
     def closeByMenuButton(self):
         self._closeflag = True
@@ -31,35 +32,49 @@ class LoggingDialog( QDialog ):
             self.closeSignal.closed.emit()
         return super().closeEvent(evt)
 
-
-Signals = type("LogSignal", (QObject,), {'logInfo': pyqtSignal(str), 'showMessage':pyqtSignal(str)})
 class RokAMU(QMainWindow):
-    def __init__(self, systemResolution: list, parent = None):
+    def __init__(self, parent = None):
         QMainWindow.__init__(self, parent)
         self.setAttribute(Qt.WA_TranslucentBackground)
+        systemResolution = size()
         self.resolutionOption = self.initResolutionOption( systemResolution )
-
-        self.signals = Signals()
-        self.statusBar().showMessage('hello')
-        self.statusBar().setStyleSheet('QStatusBar{padding-left:8px;background:rgba(20,20,20,30);color:white;font-weight:bold;}')
-        self.signals.showMessage.connect(lambda m: self.statusBar().showMessage(m))
-        self.logger = makeLogger(signal=self.signals.logInfo, name='amu')
-        self.coloratura = Coloratura(self.signals.logInfo)
-
-        #self.startKeyControl()
-        self.createSubWidgets()
-        self.connectSubSignals()
+        self.signals = type("Signals", (QObject,), {'logInfo': pyqtSignal(str), 'showMessage':pyqtSignal(str)})()
+        self.logger = self.prepareLogger()
+        self.coloratura = Coloratura(self.loggingQueue)
+        self.createSubWindows()
         self.initUI(systemResolution)
+        self.createStatusBar()
         self.createActions()
         self.createMenus()
         self.createMenuBar()
         self.createLandToolBar()
+    
+    def createStatusBar(self):
+        self.statusBar().setStyleSheet('QStatusBar{padding-left:8px;background:rgba(20,20,20,30);color:white;font-weight:bold;}')
+        self.statusBar().showMessage('hello')
+        if isinstance(self.signals.showMessage, pyqtBoundSignal ):
+            self.signals.showMessage.connect(lambda m: self.statusBar().showMessage(m))
 
-        self.logger.info('program launched')
+    def prepareLogger(self):
+        self.loggingQueue = Queue(-1)
+        self.logListener = MultiProcessLogging()
+        if isinstance( self.signals.logInfo, pyqtBoundSignal ):
+            self.signals.logInfo.connect( lambda msg: self.loggingPlainText(msg) )
+            self.logListener.startGetter(self.loggingQueue, 'listener', self.signals.logInfo )
+        else:
+            self.logListener.startGetter(self.loggingQueue, 'listener' )
+    
+        logger = MultiProcessLogging().make_q_handled_logger(self.loggingQueue, 'amu')
+        logger.info('test-info')
+        logger.debug('test-debug')
+        logger.warning('test-warning')
+        logger.error('test-error')
+        logger.critical('test-critical')
+        return logger
 
     def loggingPlainText(self, msg):
         mutex = QMutex()
-        if mutex.tryLock(5000):
+        if mutex.tryLock(2000):
             self.plainTextLogger.appendPlainText(msg)
             mutex.unlock()
         else:
@@ -75,23 +90,18 @@ class RokAMU(QMainWindow):
             return (480,360,marginRate)
 
     def closeEvent(self, e):
+        self.logger.debug('amu closed')
+        self.logListener.stopGetter(self.loggingQueue)
         self.coloratura.deleteLater()
         self.overlay.signals.systemEndSign.emit()
-        self.logger.debug('amu closed')
         return super().closeEvent(e)
 
-    def createSubWidgets( self ):
+    def createSubWindows( self ):
         self.plainTextLogger = QPlainTextEdit()
-        self.coloraturaView:ColoraturaView = ColoraturaView( self.signals.logInfo, self.signals.showMessage, self.coloratura, parent = self) # sub widget
-        self.rokMiniMap:MiniMap = MiniMap( self.signals.logInfo, self.coloratura, parent = self ) # sub widget
-        self.overlay:Overlay = Overlay( self.signals.logInfo, self.coloratura , parent = self) # sub window
-
-    def connectSubSignals( self ):
-        try:
-            self.signals.logInfo.connect( lambda msg: self.loggingPlainText(msg))
-        except AttributeError:
-            pass
+        self.coloraturaView:ColoraturaView = ColoraturaView( self.loggingQueue, self.signals.showMessage, self.coloratura, parent = self) # sub widget
+        self.rokMiniMap:MiniMap = MiniMap( self.loggingQueue, self.coloratura, parent = self ) # sub widget
         self.rokMiniMap.signals.landLoaded.connect( lambda id, name: self.createLandAction(id, name))
+        self.overlay:Overlay = Overlay( self.loggingQueue, self.coloratura , parent = self) # sub window
 
     def initUI(self, systemResolution):
         mainWidget = QWidget(self)
@@ -124,12 +134,14 @@ class RokAMU(QMainWindow):
         def logginDialog( checked:bool ):
             if checked:
                 logginDialog.dialog = LoggingDialog(self.plainTextLogger, parent=self)
-                logginDialog.dialog.closeSignal.closed.connect( lambda: self.showLoggerAction.setChecked(False))
-                logginDialog.dialog.show()
-                logginDialog.dialog.raise_()
+                if isinstance( logginDialog.dialog.closeSignal.closed, pyqtBoundSignal ):
+                    logginDialog.dialog.closeSignal.closed.connect( lambda: self.showLoggerAction.setChecked(False))
+                    logginDialog.dialog.show()
+                    logginDialog.dialog.raise_()
             else:
                 if isinstance(logginDialog.dialog, LoggingDialog):
-                    logginDialog.dialog.closeSignal.close.emit()
+                    if isinstance( logginDialog.dialog.closeSignal.close, pyqtBoundSignal ):
+                        logginDialog.dialog.closeSignal.close.emit()
         logginDialog.dialog = None
         self.showLoggerAction.triggered.connect(lambda checked: logginDialog(checked))
         self.showOverlayAction = QAction(self)

@@ -1,4 +1,3 @@
-import logging
 import cv2
 import numpy as np
 import pyautogui
@@ -10,12 +9,12 @@ from concurrent import futures
 from PyQt5.QtCore import QMutex, QRunnable, QThread, QWaitCondition, QObject, pyqtSignal, pyqtBoundSignal
 from pathlib import Path
 from recognizing import OcrEngine, ocr_preprocessing, hsvMasking, template_match, detectShape, findContourList, rotateImage
-from log import makeLogger
 from unpredictable import MT19937Generator
 from multiprocessing import Process, Queue, Pipe, connection
 from threading import Event
 from pynput import keyboard
 from time import sleep
+from log import MultiProcessLogging
 
 LV_CHECK_STATUS = 1
 LV_MOUSING = 2
@@ -43,9 +42,10 @@ class ColoraturaSignalKey:
     plotPlt = 6
     changeBbox = 7
     addRect = 8
-    logInfo = 9
+    statusMessage = 9
 
-    captureScreen = 10 # special signature
+
+    captureScreen = 99 # special signature
 
 class Coloratura( QObject ):
     # minimap
@@ -64,7 +64,8 @@ class Coloratura( QObject ):
     addRect = pyqtSignal(tuple, int, int ,int ,int, int) # draw ovetlay rects, rgba, thickness
     clearRects = pyqtSignal(QWaitCondition)
 
-    logInfo = pyqtSignal( str )
+    # to main window
+    statusMessage = pyqtSignal( str )
 
     def signalMap(self, key:int):
         if key == ColoraturaSignalKey.changeLocation: # 0
@@ -85,12 +86,12 @@ class Coloratura( QObject ):
             return self.changeBbox
         elif key == ColoraturaSignalKey.addRect: # 8
             return self.addRect
-        elif key == ColoraturaSignalKey.logInfo: #9
-            return  self.logInfo
+        elif key == ColoraturaSignalKey.statusMessage: #9
+            return  self.statusMessage
 
-    def __init__(self, logSignal:pyqtBoundSignal):
+    def __init__(self, loggingQueue:Queue):
         super().__init__()
-        self.logger = makeLogger(signal=logSignal, name='coloratura')
+        self.logger = MultiProcessLogging().make_q_handled_logger(loggingQueue, 'coloratura')
         self.bbox:tuple = None
             
     def grabScreen( self ):
@@ -104,10 +105,10 @@ class Coloratura( QObject ):
                     waitCondition.wait(mutex, 2000)
                 finally:
                     mutex.unlock()
-                    self.logger.debug('Coloratura ready to capture')
                     img_pil = ImageGrab.grab(bbox=self.bbox)
                     img_src = np.array(img_pil)
                     img_gray = cv2.cvtColor(img_src, cv2.COLOR_BGR2GRAY)
+                    self.logger.debug('capture: succ')
                     return (img_src, img_gray)
             else:
                 self.logger.debug('capture failure: deadlock')
@@ -176,66 +177,52 @@ class ColoraturaConnector(QThread):
         super().__init__()
         self.__coloratura = coloratura
         self.__pipe = pipe_main
-        self.__running = Event()
-        self.__running.clear()
 
     def _emit(self, key:int, args=None):
         if key == ColoraturaSignalKey.captureScreen:
             data = ( ('captured'), )
             captured = self.__coloratura.grabScreen()
             data += ( captured, )
-            self.__pipe.send( data ) 
+            try:
+                self.__pipe.send( data )
+            except Exception:
+                pass
         else:
             signal = self.__coloratura.signalMap(key)
             if isinstance( signal, pyqtBoundSignal ):
                 try:
-                    if isinstance(args,tuple):
+                    if args is not None:
                         signal.emit(*args)
                     else:
                         signal.emit()
                 except TypeError:
                     pass
+
     def run(self):
-        self.__running.set()
-        while self.__running.is_set():
-            self.__coloratura.logger.debug(f'connector: looping...')
+        while True:
+            #self.__coloratura.logger.debug('connector: looping...')
             try:
                 recvData = self.__pipe.recv()
             except EOFError:
-                self.__coloratura.logger.debug(f'connector: end')
                 break
-            except OSError:
-                self.__coloratura.logger.debug(f'os error')
             else:
+                if recvData is None:
+                    break
+                #self.__coloratura.logger.debug(f'recvd: {recvData}')
                 self._emit(*recvData) # (signature) + (args)
-        self.__coloratura.logger.debug(f'connector: end loop')
-    
-    def stop(self):
-        self.__pipe.close()
-        self.__running.clear()
-        self.quit()
+        #self.__coloratura.logger.debug('connector: end loop')
+        print('connector end')
 
 class ColoraturaProcessRunner(QRunnable):
-    def close(self):
-        #self.__connector.stop()
-        self.__process.end_process()
-    
     def run(self):
-        
-        def on_press(key):
-            try:
-                self.__coloratura.logger.debug('key {0} pressed'.format(key.char))
-            except AttributeError:
-                self.__coloratura.logger.debug('special key {0} pressed'.format(key))
         def on_release(key):
             if key == keyboard.Key.esc:
-                self.__coloratura.logger.debug('process terminated by esc key')
-                self.close()
+                self.__process.end_process()
         
         self.__connector.start()
         self.__process.start()
-        self.__coloratura.logger.debug(f'---Process level{self.__level} started')
-        keyboard_listener = keyboard.Listener(on_press = on_press, on_release = on_release )
+        #self.__coloratura.logger.debug(f'---Process level {self.__level} started---')
+        keyboard_listener = keyboard.Listener(on_release = on_release )
         keyboard_listener.start()
         while True:
             try:
@@ -243,26 +230,28 @@ class ColoraturaProcessRunner(QRunnable):
             except EOFError:
                 break
             else:
-                if data == 'fin':
-                    self.__queue.close()
+                if data is None:
                     break
         keyboard_listener.stop()
-        self.__connector.stop()
-        self.__coloratura.logger.debug(f'---Process level{self.__level} finished')            
+        keyboard_listener.join()
+        self.__connector.wait()
+        self.__process.join()
+        #self.__coloratura.logger.debug(f'---Process level {self.__level} finished---')         
         try:
             self.finSignal.finished.emit()
         except AttributeError:
             pass
+        print('runner end')
 
-    def __init__(self, coloratura:Coloratura, level:int=1):
+    def __init__(self, loggingQueue:Queue, coloratura:Coloratura, level:int=1):
         super().__init__()
-        self.finSignal = type("FinSignal", (QObject,), {'finished': pyqtSignal()})()
+        self.finSignal = type('FinSignal', (QObject,), {'finished': pyqtSignal()})()
         self.__coloratura = coloratura
         self.__level = level
         self.__queue = Queue()
         conn_main, conn_proc = Pipe(True)
         self.__connector = ColoraturaConnector(coloratura, conn_main)
-        self.__process = ColoraturaProcess(self.__queue, conn_proc, tuple(e for e in coloratura.bbox), level)
+        self.__process = ColoraturaProcess( loggingQueue, self.__queue, conn_proc, tuple(e for e in coloratura.bbox), level)
 
 class ColoraturaProcess(Process):
     WHERE_NONE = 0
@@ -279,11 +268,12 @@ class ColoraturaProcess(Process):
     DIALOG_UNKNOWN = 3
     INIT_STATE = 9
     
-    def __init__(self, queue:Queue, pipe:connection.Connection, bbox:tuple, level:int = 1):
+    def __init__(self, loggingQueue:Queue, queue:Queue, pipe:connection.Connection, bbox:tuple, level:int = 1):
         super().__init__()
         self.__queue = queue
         self.__level = level
         self.__pipe = pipe
+        self.__loggingQ = loggingQueue
         
         self.ocr = OcrEngine()
         self.loadTmImages()
@@ -294,10 +284,11 @@ class ColoraturaProcess(Process):
         self.initStateFlags()
         self.initWorkFlowData()
         self.randomGenerator = MT19937Generator()
-        #self.waitForEvalLoc = QWaitCondition()
         self.direction: float = self.randomGenerator.generateRandomFloat(max=360.0) # 0.0 ~ 360.0
         #self.evalLocation.connect(lambda a: self.changeDirection( a ))
-
+        self.logger = MultiProcessLogging().make_q_handled_logger(self.__loggingQ, 'proc')
+        
+        
     def loadTmImages(self):
         source_path = Path(__file__).resolve()
         assets_dir = str(source_path.parent) + '/assets'
@@ -319,20 +310,28 @@ class ColoraturaProcess(Process):
 
     def _emit( self, key:int, args=None):
         data = (key,)
-        if isinstance(args,tuple):
-            data += (args,)
-        self.__pipe.send(data)
+        if args is not None:
+            if isinstance( args, tuple):
+                data += (args,)
+            else:
+                data += ((args,),)
+        try:
+            self.__pipe.send(data)
+        except Exception:
+            pass
         
     def end_process(self):
         try:
+            print('process end')
+            self.__pipe.send(None) # stop signal connector
+            self.__queue.put(None) # stop runner
             self.terminate()
-            self.__queue.put('fin')
         except AttributeError:
             pass
         
     def run(self):
+        self.logger.debug('start process')
         while( True ):
-        #self.coloratura.logger.info('start process')
             self.initWorkFlowData()
             self.initStateFlags()
             captureSucc:bool = False
@@ -365,15 +364,13 @@ class ColoraturaProcess(Process):
                         whereResult:bool = whereFuture.result()
                         robotResult:bool = robotFuture.result()
 
-                        print(f'when:{whenResult}, where:{whereResult}, robot:{robotResult}')
                         if whenResult and whereResult and not robotResult:
                             self.determineFieldWork(coordsResult, img_gray, self.__level)
             if self.__level >= LV_AUTO:
                 sleep(0.5)
             else: 
-                break
-            
-        self.__queue.put('fin')
+                break   
+        self.end_process()
 
     def changeDirection( self, angle:float):
         self.direction = angle
@@ -452,12 +449,11 @@ class ColoraturaProcess(Process):
                             cw,ch = cv2.boundingRect(contour)[2:]
                             if cw < w and cw * 5 > w and ch * 20 > h and ch < h:
                                 verticesCnt = detectShape(contour=contour, epsilon=0.02)[0]
-                                #self.logger.debug( f'button shape:{verticesCnt}' )
+                                self.logger.debug( f'button shape:{verticesCnt}' )
                                 if verticesCnt == 4:
                                     fitContours += ( (mask_idf,contour),)
             except Exception as e:
-                pass
-                #self.logger.debug('exception while find buttons', stack_info=True)
+                self.logger.debug('exception while find buttons', stack_info=True)
                             
             return (fitContours, px, py)
                     
@@ -492,16 +488,16 @@ class ColoraturaProcess(Process):
             
             if robotResult is not None and btnCount == 1 and 'blue' in buttonBoxes:
                 if self.analyzeRobot2Dialog( img_gray, bbox, buttonBoxes['blue'][0], robotResult):
-                    self._emit(ColoraturaSignalKey.changeState, (self.DIALOG_ROBOT))
+                    self._emit(ColoraturaSignalKey.changeState, self.DIALOG_ROBOT)
                     if wf_level >= LV_CRACK:
                         self.crackRobotCheck(img_src, False)
                     return
             if rubyResult:
-                self._emit(ColoraturaSignalKey.changeState, (self.DIALOG_RUBY))
-                #self.logger.info( f'dialog: ruby with {btnCount} button(s)' )
+                self._emit(ColoraturaSignalKey.changeState, self.DIALOG_RUBY)
+                self.logger.info( f'dialog: ruby with {btnCount} button(s)' )
             else:
-                self._emit(ColoraturaSignalKey.changeState, (self.DIALOG_UNKNOWN))
-                #self.logger.info( f'dialog: unknown with {btnCount} button(s)' )
+                self._emit(ColoraturaSignalKey.changeState, self.DIALOG_UNKNOWN)
+                self.logger.info( f'dialog: unknown with {btnCount} button(s)' )
             
             if wf_level >= LV_MOUSING:
                 if btnCount == 1 and 'blue' in buttonBoxes:
@@ -539,14 +535,14 @@ class ColoraturaProcess(Process):
             cx, cy, cw,ch = cv2.boundingRect(contour)
             if cw < iw and cw > iw * 0.6 and ch > ih * 0.7 and ch < ih:
                 verticesCnt, ar = detectShape(contour=contour)
-                #self.logger.debug( f'dialog shape:{verticesCnt}, ar:{ar}' )
+                self.logger.debug( f'dialog shape:{verticesCnt}, ar:{ar}' )
                 if verticesCnt == 4:
                     bbox = (cx, cy, cx+cw, cy+ch)
                     self._emit(ColoraturaSignalKey.addRect, ( bbox, 0,0,255,255, 5 ))
                     return ('navy',bbox)
         self.state_dialog = self.NO_DIALOG
-        self._emit(ColoraturaSignalKey.changeState, self.NO_DIALOG)
-        #self.logger.info( 'dialog: none' )
+        self._emit(ColoraturaSignalKey.changeState, self.NO_DIALOG )
+        self.logger.info( 'dialog: none' )
         return None
 
     def detectNightAndDay( self, img_gray:np.ndarray ):
@@ -562,16 +558,15 @@ class ColoraturaProcess(Process):
         
             if daytime is True:
                 self.state_when = self.WHEN_DAY
-                #self.logger.info( f'when: daytime (cr: {str(wbRatio)})' )
+                self.logger.info( f'when: daytime (cr: {str(wbRatio)})' )
             else:
                 self.state_when = self.WHEN_NIGHT
-                #self.logger.info( f'when: night (cr: {str(wbRatio)})' )
+                self.logger.info( f'when: night (cr: {str(wbRatio)})' )
             return True
-        except Exception as e:
-            pass
-            #self.logger.debug('when error', stack_info=True)
+        except Exception:
+            self.logger.debug('when error', stack_info=True)
         self.state_when = self.WHEN_NONE
-        #self.logger.info( f'when: none' )
+        self.logger.info( f'when: none' )
         return False
 
     def checkRobotBtnAppear(self, img_gray:np.ndarray, wf_level:int = 1):
@@ -595,8 +590,7 @@ class ColoraturaProcess(Process):
                     pyautogui.click()
                 return True
         except Exception:
-            pass
-            #self.logger.debug('checkRobotBtnAppear', stack_info= True)
+            self.logger.debug('checkRobotBtnAppear', stack_info= True)
         return False
 
     def checkFieldOrHome(self, img_gray:np.ndarray, wf_level:int = 1):
@@ -607,18 +601,18 @@ class ColoraturaProcess(Process):
         try:
             img_left_lower = img_gray[pY: imgHeight, pX: int( imgWidth * 0.3)]
             img_th = cv2.threshold(img_left_lower, TH_BUTTON1, 255, cv2.THRESH_BINARY)[1]
-            self._emit(ColoraturaSignalKey.changeTemplate,(self.template_to_home))    
+            self._emit(ColoraturaSignalKey.changeTemplate, self.template_to_home)    
             match_result = self.multiScaleMatch( self.template_to_home, img_th )
 
             if match_result is not None:
-                #self.logger.info( 'where: field' )
+                self.logger.info( 'where: field' )
                 self.state_where = self.WHERE_FIELD
                 
             else:
-                self._emit(ColoraturaSignalKey.changeTemplate,(self.template_to_field))
+                self._emit(ColoraturaSignalKey.changeTemplate,self.template_to_field)
                 match_result = self.multiScaleMatch( self.template_to_field, img_th)
                 if match_result is not None:
-                    #self.logger.info( 'where: home' )
+                    self.logger.info( 'where: home' )
                     self.state_where = self.WHERE_HOME
 
             if match_result is not None:
@@ -637,10 +631,8 @@ class ColoraturaProcess(Process):
                 return True
 
         except Exception as e:
-            logging.exception('aaa')
-            pass
-            #self.logger.debug( 'where', stack_info=True)
-        #self.logger.info( 'where: none' )
+            self.logger.debug( 'where', stack_info=True)
+        self.logger.info( 'where: none' )
         self.state_where = self.WHERE_NONE
         return False
             
@@ -676,7 +668,7 @@ class ColoraturaProcess(Process):
 
                             txt = regexSub('\D',' ', coords_txt)
                             split = [e for e in regexSplit('\s+', txt) if e != '']
-                            #self.logger.info( f'location(ocr): {coords_txt}' )
+                            self.logger.info( f'location(ocr): {coords_txt}' )
                             if( len(split) == 3):
                                 digits = tuple()
                                 for i in range(0,3):
@@ -684,17 +676,16 @@ class ColoraturaProcess(Process):
                                 mutex = QMutex()
                                 if mutex.tryLock(2000):
                                     try:
-                                        #self.logger.debug(f'degree before:{self.direction}')
+                                        self.logger.debug(f'degree before:{self.direction}')
                                         self._emit( ColoraturaSignalKey.changeLocation,( digits, self.direction ) )
                                         #self.waitForEvalLoc.wait(mutex, 2000)
-                                        #self.logger.debug(f'degree after:{self.direction}')
+                                        self.logger.debug(f'degree after:{self.direction}')
                                     finally:
                                         mutex.unlock()
                                     return True
                     except Exception as e:
-                        pass
-                        #self.logger.debug(f'location error {e}', stack_info=True)
-        #self.logger.info( f'location: none' )
+                        self.logger.debug(f'location error {e}', stack_info=True)
+        self.logger.info( f'location: none' )
         return False
 
     def findRuby(self, img_gray:np.ndarray ):
@@ -716,8 +707,7 @@ class ColoraturaProcess(Process):
                 if match_result is None:
                     match_result, img_th = rubyMatch( img_gray, self.template_ruby_night, TH_RUBY_NIGHT )
         except AttributeError:
-            pass
-            #self.logger.debug( 'find ruby', stack_info = True)
+            self.logger.debug( 'find ruby', stack_info = True)
             
         if match_result is not None and img_th is not None:
             matched = cv2.cvtColor(img_th, cv2.COLOR_GRAY2RGB)
@@ -728,11 +718,10 @@ class ColoraturaProcess(Process):
 
             #cv2.rectangle(matched, rTopLeft,rBottomRight, (0,0,255),5)
             rBox = rTopLeft + rBottomRight
-            #self.logger.info(  f'ruby match value: {matchVal}' )
+            self.logger.info(  f'ruby match value: {matchVal}' )
             self.rboxList.append(rBox)
             self._emit(ColoraturaSignalKey.addRect, ( rBox, 255,0,0,255, 5 ))
             rx1, ry1, rx2, ry2 = rBox
-            #wf find ruby level > wf mousing level
             pyautogui.moveTo( self.bbox[0] + (rx1+rx2)//2, self.bbox[1] + (ry1+ry2)//2, 1.5 )
             pyautogui.click()
             return True
@@ -793,16 +782,15 @@ class ColoraturaProcess(Process):
               self.crack_image_box = ( dx1, dy1+int(RATIO_HEAD_IN_DIALOG*dh), dx2, by1 - 5)
               self._emit(ColoraturaSignalKey.addRect, ( self.crack_image_box, 255,255,0,255, 2))
               self.crack_button_box = blueButtonBox
-              #self.logger.info( f'dialog: check robot with {len(self.crack_tm_box_list)} template(s)')
+              self.logger.info( f'dialog: check robot with {len(self.crack_tm_box_list)} template(s)')
           return True
       except Exception as e:
-          pass
-          #self.logger.debug( 'analyzing failure', stack_info=True)
+          self.logger.debug( f'analyzing failure {e}', stack_info=True)
       return False
 
     def crackRobotCheck( self, img_src:np.ndarray, adjustMode:bool = False ):
         if self.crack_image_box is None or self.crack_button_box is None or len(self.crack_tm_box_list)<1:
-            #self.logger.warning( 'crack data unsatisfied' )
+            self.logger.warning( 'crack data unsatisfied' )
             return
 
         cx1, cy1, cx2, cy2 = self.crack_image_box
@@ -845,7 +833,7 @@ class ColoraturaProcess(Process):
 
         def matchCrackTemplate( number:int, img_template:np.ndarray, content_canny:np.ndarray):
             template_canny = cv2.Canny(cv2.GaussianBlur(img_template,(1,1),0) , 2, 0)
-            #self.logger.debug( f'template matching #{number} launched' )
+            self.logger.debug( f'template matching thread#{number} launched' )
             match_result = None
             for thVal in [0.5,0.4,0.3]:
                 for angle in np.linspace(360, 0, 180)[::-1]:
@@ -864,7 +852,7 @@ class ColoraturaProcess(Process):
                         x1,y1,x2,y2 = localMatchBox
                         globalMatchBox = (cx1+x1, cy1+y1, cx1+x2, cy1+y2)
                         self._emit(ColoraturaSignalKey.addRect, ( globalMatchBox, 255,0,0,255, 2 ))
-                        #self.logger.debug( f'template matching #{number} end')
+                        self.logger.debug( f'template matching thread#{number} end')
                         return (number, globalMatchBox)
             return (number, None)
 
@@ -887,7 +875,7 @@ class ColoraturaProcess(Process):
                     mx1, my1, mx2, my2 = box
                     pyautogui.moveTo( self.bbox[0] + (mx1+mx2)//2, self.bbox[1]+ (my1+my2)//2, 0.5 )
                     pyautogui.click()
-            #self.logger.debug('all templates clicked')
+            self.logger.debug('all templates clicked')
 
             bx1, by1, bx2, by2 = self.crack_button_box
             pyautogui.moveTo( self.bbox[0] + (bx1+bx2)//2, self.bbox[1]+ (by1+by2)//2, 1 )
@@ -905,7 +893,7 @@ class ColoraturaProcess(Process):
                 try:
                     scale = scales[index]
                 except IndexError:
-                    #self.logger.debug('array out of bounds', stack_info=True)
+                    self.logger.debug('array out of bounds', stack_info=True)
                     continue
                 resized = imResize(img, width = int(img.shape[1] * scale))
                 r = img.shape[1] / float(resized.shape[1])
@@ -915,26 +903,24 @@ class ColoraturaProcess(Process):
                     break
                 match_result = template_match(template,resized,self.tmMethod, matchVal)
                 if match_result is not None:
-                    #self.logger.debug(f'template found in {tryCount}try(s) ratio:{str(1/r)}')
+                    self.logger.debug(f'template found in {tryCount}try(s) ratio:{str(1/r)}')
                     return match_result + (r,)
             tryCount+=1
             
         return None
 
     def determineFieldWork(self, coordResult:bool, img_gray:np.ndarray, wf_level:int = 1):
-        print( f'where:{self.state_where}, coord:{coordResult}')
         if self.state_where == self.WHERE_FIELD and coordResult:
             if self.direction < 0:
                 self.direction = self.randomGenerator.generateRandomFloat(max=360.0)
-                #self.logger.debug('random direction generated')
+                self.logger.debug('random direction generated')
                 if wf_level >= LV_MOUSING:
                     try:
                         x1, y1, x2, y2 = self.field_button_box
                         pyautogui.moveTo( self.bbox[0] + (x1+x2)//2, self.bbox[1]+ (y1+y2)//2, 1 )
                         pyautogui.click()
                     except TypeError:
-                        pass
-                        #self.logger.debug('mousing fail: field_button_box is None')
+                        self.logger.debug('mousing fail: field_button_box is None')
             else:
                 for rbox in self.rboxList:
                     cv2.rectangle( img_gray, (rbox[0],rbox[1]),(rbox[2],rbox[3]),(0,0,0),-1)

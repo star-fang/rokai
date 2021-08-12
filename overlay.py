@@ -1,9 +1,9 @@
-import logging
+from multiprocessing import Queue
 from PyQt5.QtWidgets import QMainWindow, QWidget
 from PyQt5.QtCore import QPointF, QRectF, QThreadPool, QWaitCondition, QObject, Qt, pyqtBoundSignal, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor, QPaintEvent, QPainter, QPainterPath, QPen, QPolygonF, QMouseEvent
 from coloratura import Coloratura, DetectScreenWorker
-from log import makeLogger
+from log import MultiProcessLogging
 
 TranslucentSignal = type("TranslucentSignal", (QObject,), {'addRect': pyqtSignal(tuple)})
 class TranslucentRects(QWidget):
@@ -44,7 +44,7 @@ class OverlaySignals(QObject):
 class Overlay(QMainWindow):
     BORDER_THICKNESS = 12
 
-    def __init__(self, logSignal:pyqtBoundSignal, coloratura: Coloratura, parent=None):
+    def __init__(self, loggingQueue:Queue, coloratura: Coloratura, parent=None):
         QMainWindow.__init__(self, parent, Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
 
         widget = QWidget(self)
@@ -63,7 +63,7 @@ class Overlay(QMainWindow):
         self.pvPoint:list = None # pivot points form resizng << type is list for [mutable] parameter passing
         self._setGeoMode:int = 0
 
-        self.logger = makeLogger(logSignal, 'overlay')
+        self.logger = MultiProcessLogging().make_q_handled_logger(loggingQueue, 'overlay')
 
         self.signals = OverlaySignals()
         self.signals.toggleSign.connect(self.toggleWindow)
@@ -288,9 +288,8 @@ class Overlay(QMainWindow):
                 if move and nextW > 8*self.BORDER_THICKNESS and nextH > 8*self.BORDER_THICKNESS:
                     self.setGeometry( nextX, nextY, nextW, nextH )
             except UnboundLocalError:
-                logging.exception( 'exception while dragging')
+                self.logger.debug('exception while dragging')
 
-            
             self.pvPoint[2] = egX
             self.pvPoint[3] = egY
             

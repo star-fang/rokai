@@ -1,0 +1,4 @@
+[CRITICAL/2021-08-12 23:30:14,189] main:25, pid:11040 -> test-critical
+[2021-08-13 00:25:01,284 - WARNING] amu:71, pid:7216 -> test-warning
+[2021-08-13 00:25:01,285 - ERROR] amu:72, pid:7216 -> test-error
+[2021-08-13 00:25:01,285 - CRITICAL] amu:73, pid:7216 -> test-critical

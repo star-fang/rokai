@@ -1,22 +1,24 @@
+from multiprocessing import Queue
 from PyQt5.QtWidgets import QProgressBar, QSlider, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
 from PyQt5.QtCore import QThreadPool, Qt, pyqtBoundSignal
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
 from coloratura import Coloratura, ColoraturaProcessRunner
 from matplotlib import pyplot as plt # thread - unsafe
-from log import makeLogger
+from log import MultiProcessLogging
 
 class ColoraturaView(QWidget):
     Button_LOCATION = 2
     Button_CRACK = 3
     Button_FIND = 4
-    WORKFLOW_LEVELS = ['상태', '마우스 동작', '루비찾기', '인증풀기', '반복']
-    def __init__(self, logSignal:pyqtBoundSignal, statusSignal:pyqtBoundSignal, coloratura: Coloratura, parent=None):
+    WORKFLOW_LEVELS = ['상태감지', '마우스 동작', '루비찾기', '인증풀기', '반복']
+    def __init__(self, loggingQueue:Queue, statusSignal:pyqtBoundSignal, coloratura: Coloratura, parent=None):
         QWidget.__init__(self, parent)
         self.coloratura = coloratura
         self.initUi()
         self.connectColoraturaSignals()
-        self.logger = makeLogger(logSignal, 'sview')
+        self.loggingQueue = loggingQueue
+        self.logger = MultiProcessLogging().make_q_handled_logger(loggingQueue, 'coloratura_view')
         self.statusMessageSignal = statusSignal
         self.threadPool = QThreadPool(self)
         self.threadPool.setMaxThreadCount(1)
@@ -82,34 +84,15 @@ class ColoraturaView(QWidget):
 
     def onFlowButtonClicked( self, level ):
         self.flow_btn.setEnabled(False)
-        runner = ColoraturaProcessRunner( self.coloratura, level = level )
-        try:
+        runner = ColoraturaProcessRunner( self.loggingQueue, self.coloratura, level = level )
+        if isinstance(runner.finSignal.finished, pyqtBoundSignal ):
             runner.finSignal.finished.connect(lambda: self.flow_btn.setEnabled(True))
             self.threadPool.start(runner)
-        except AttributeError:
+        else:
             self.flow_btn.setEnabled(True)
-            self.logger.debug('exception while connect fin sign')
-
-    def onWorkFinished( self, work ):
-        if( work == ColoraturaWorker.WORK_COORDINATES):
-            self.location_btn.setEnabled(True)
-        elif( work == ColoraturaWorker.WORK_CRACK ):
-            self.setAngleVal(0)
-            self.setRatioVal(0)
-            self.crack_btn.setEnabled(True)
-        elif( work == ColoraturaWorker.WORK_RUBY ):
-            self.find_btn.setEnabled(True)
 
     def onStateChanged(self, state):
-        if( state == Coloratura.NO_DIALOG ):
-            self.crack_btn.setEnabled(False)
-            self.find_btn.setEnabled(True)
-        elif( state == Coloratura.DIALOG_ROBOT ):
-            self.find_btn.setEnabled(False)
-            self.crack_btn.setEnabled(True)
-        else:
-            self.find_btn.setEnabled(False)
-            self.crack_btn.setEnabled(False)
+        pass
 
     def setTemplateImage(self, mat):
         pixmap = mat2QPixmap( mat )

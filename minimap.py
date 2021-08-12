@@ -2,11 +2,13 @@ import json
 from re import sub as regexreplace
 from math import cos, sin, radians, atan2, degrees
 from PyQt5.QtWidgets import  QWidget
-from PyQt5.QtCore import QLineF, QObject, QPointF, QRectF, pyqtBoundSignal, pyqtSignal
+from PyQt5.QtCore import QLineF, QObject, QPointF, QRectF, pyqtSignal
 from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from pathlib import Path
 from coloratura import Coloratura
-from log import makeLogger
+from log import MultiProcessLogging
+from multiprocessing import Queue
+
 def intersctionPoint( boundary:QPolygonF, line: QLineF):
     bLen = boundary.count()
     for i in range(bLen):
@@ -52,7 +54,7 @@ class MiniMapSignals(QObject):
     landLoaded = pyqtSignal(int, dict)
 
 class MiniMap(QWidget):
-    def __init__(self, logSignal:pyqtBoundSignal, coloratura: Coloratura, parent=None):
+    def __init__(self, loggingQ:Queue, coloratura: Coloratura, parent=None):
         super(MiniMap, self).__init__(parent)
         #self.setAttribute(Qt.WA_TranslucentBackground)
         self.coloratura = coloratura
@@ -60,7 +62,7 @@ class MiniMap(QWidget):
         self.signals = MiniMapSignals()
         self.signals.readData.connect(self.readData)
         self.signals.landChecked.connect(self.checkLand)
-        self.logger = makeLogger(logSignal, 'mini')
+        self.logger = MultiProcessLogging().make_q_handled_logger(loggingQ, 'mini')
 
         self._paintcallCnt = 0
         self._drawflag = False
