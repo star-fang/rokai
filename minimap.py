@@ -6,7 +6,7 @@ from PyQt5.QtCore import QLineF, QObject, QPointF, QRectF, pyqtSignal
 from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from pathlib import Path
 from coloratura import Coloratura
-from log import MultiProcessLogging
+from log import make_q_handled_logger
 from multiprocessing import Queue
 
 def intersctionPoint( boundary:QPolygonF, line: QLineF):
@@ -62,7 +62,7 @@ class MiniMap(QWidget):
         self.signals = MiniMapSignals()
         self.signals.readData.connect(self.readData)
         self.signals.landChecked.connect(self.checkLand)
-        self.logger = MultiProcessLogging().make_q_handled_logger(loggingQ, 'mini')
+        self.logger = make_q_handled_logger(loggingQ, 'mini')
 
         self._paintcallCnt = 0
         self._drawflag = False

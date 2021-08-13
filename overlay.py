@@ -1,9 +1,9 @@
 from multiprocessing import Queue
 from PyQt5.QtWidgets import QMainWindow, QWidget
-from PyQt5.QtCore import QPointF, QRectF, QThreadPool, QWaitCondition, QObject, Qt, pyqtBoundSignal, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QPointF, QRectF, QRunnable, QObject, Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor, QPaintEvent, QPainter, QPainterPath, QPen, QPolygonF, QMouseEvent
 from coloratura import Coloratura, DetectScreenWorker
-from log import MultiProcessLogging
+from log import make_q_handled_logger
 
 TranslucentSignal = type("TranslucentSignal", (QObject,), {'addRect': pyqtSignal(tuple)})
 class TranslucentRects(QWidget):
@@ -39,6 +39,7 @@ class OverlaySignals(QObject):
     #overlay-> amu
     closeSign = pyqtSignal()
     hideSign = pyqtSignal(bool)
+    addRunner = pyqtSignal(QRunnable)
 
 
 class Overlay(QMainWindow):
@@ -51,9 +52,6 @@ class Overlay(QMainWindow):
         self.setCentralWidget(widget)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
-        self.threadPool = QThreadPool(self)
-        self.threadPool.setMaxThreadCount(1)
-
         self.bboxColor = QColor(0, 255, 0, 200)
         self.boundaryColor = QColor(0, 0, 0, 255)
         self.movingBoundaryColor = QColor(255, 0, 0, 255)
@@ -63,7 +61,7 @@ class Overlay(QMainWindow):
         self.pvPoint:list = None # pivot points form resizng << type is list for [mutable] parameter passing
         self._setGeoMode:int = 0
 
-        self.logger = MultiProcessLogging().make_q_handled_logger(loggingQueue, 'overlay')
+        self.logger = make_q_handled_logger(loggingQueue, 'overlay')
 
         self.signals = OverlaySignals()
         self.signals.toggleSign.connect(self.toggleWindow)
@@ -79,14 +77,12 @@ class Overlay(QMainWindow):
         self.coloratura.addRect.connect( self.showRects )
         self.coloratura.clearRects.connect( self.clearRects )
 
-        self.conditionForCapture:QWaitCondition = None
-
         self.signals.hideSign.emit(False)
 
         self._rectsflag = False
         self.show()
 
-
+    @pyqtSlot(tuple, int, int, int, int, int)
     def showRects(self, box:tuple, r:int, g:int, b:int, alpha:int, thickness:int):
         try:
             x1, y1, x2, y2 = box
@@ -105,17 +101,22 @@ class Overlay(QMainWindow):
         except Exception:
             self.logger.debug('exception while draw rect', stack_info=True)
     
-    @pyqtSlot(QWaitCondition)
-    def clearRects( self, waitCondition:QWaitCondition=None ):
+    @pyqtSlot()
+    def clearRects(self):
         if self._rectsflag:
             self.rects.close()
             self._rectsflag = False
-        if isinstance(waitCondition,QWaitCondition):
-            waitCondition.wakeAll()
+
+    @pyqtSlot( tuple )
+    def setBbox( self, bbox:tuple):
+        if len(bbox) == 4:
+            self.bbox = [e+self.BORDER_THICKNESS for e in bbox]
+            self._bboxFlag = True
+            self.repaint()
 
     def requestDetectScreenWork( self ):
-        worker = DetectScreenWorker(self.coloratura, self.getInnerRect())
-        self.threadPool.start(worker)
+        runner = DetectScreenWorker(self.coloratura, self.getInnerRect())
+        self.signals.addRunner.emit(runner)
 
     def getInnerRect(self):
         rect = self.geometry().getRect()
@@ -125,12 +126,7 @@ class Overlay(QMainWindow):
         h = rect[3] - 2 * self.BORDER_THICKNESS
         return (x,y,w,h)
 
-    def setBbox( self, bbox):
-        self.bbox = [e+self.BORDER_THICKNESS for e in bbox]
-        self._bboxFlag = True
-        self.repaint()
-
-        #x,y,w,h = self.getInnerRect()
+    
 
     def requestClose( self ):
         self._closeflag = True

@@ -3,14 +3,28 @@ from logging.handlers import QueueHandler, RotatingFileHandler
 from threading import Thread
 from multiprocessing import Queue
 from pathlib import Path
-from PyQt5.QtCore import pyqtBoundSignal
+from PyQt5.QtCore import QObject, pyqtBoundSignal, pyqtSignal
 
-class MultiProcessLogging():
+def make_q_handled_logger(queue:Queue, name:str):
+    
+    logger = getLogger(name)
+    if not logger.hasHandlers():
+        print( f'{name} logger has no handler -> create new q-handler')
+        qHandler = QueueHandler(queue)
+        logger.addHandler(qHandler)
+    logger.setLevel(DEBUG)
+    
+    return logger
+
+class MultiProcessLogging(QObject):
+    logSignal = pyqtSignal(str)
+
     def __init__(self):
+        QObject.__init__(self)
         self.qDataGetter:Thread = None
     
-    def startGetter(self, queue:Queue, name:str, signal:pyqtBoundSignal=None):
-        self.qDataGetter = Thread(target=self._run_getter, args=(queue, name, signal))
+    def startGetter(self, queue:Queue, name:str):
+        self.qDataGetter = Thread(target=self._run_getter, args=(queue, name))
         self.qDataGetter.start()
     
     def stopGetter(self, queue:Queue):
@@ -18,8 +32,8 @@ class MultiProcessLogging():
         self.qDataGetter.join()
         print( 'q-log getter finished' )
     
-    def _run_getter(self, queue:Queue, name:str, signal:pyqtBoundSignal=None):
-        logger:Logger = self.make_logger( name, signal )
+    def _run_getter(self, queue:Queue, name:str):
+        logger:Logger = self.make_logger( name )
         while True:
             try:
                 record = queue.get()
@@ -31,18 +45,9 @@ class MultiProcessLogging():
                     break
                 logger.handle(record)
 
-    def make_q_handled_logger(self, queue:Queue, name:str):
-        qHandler = QueueHandler(queue)
-        logger = getLogger(name)
-        if logger.hasHandlers():
-            for handler in logger.handlers:
-                assert isinstance(handler, QueueHandler)
-                logger.removeHandler(handler)
-        logger.setLevel(DEBUG)
-        logger.addHandler(qHandler)
-        return logger
+    
 
-    def make_logger(self, name:str, signal:pyqtBoundSignal = None):
+    def make_logger(self, name:str):
         source_path = Path(__file__).resolve()
         dst_dir = str(source_path.parent) + '/dst'
 
@@ -55,7 +60,7 @@ class MultiProcessLogging():
         debugConsoleHandler = StreamHandler()
         debugConsoleHandler.setLevel(DEBUG)
 
-        informationHandler = LogSignalHandler(signal)
+        informationHandler = LogSignalHandler(self.logSignal)
         informationHandler.setLevel(INFO)
 
         debugFormat = Formatter('[%(asctime)s - %(levelname)s] %(module)s:%(lineno)d, pid:%(process)d -> %(message)s')

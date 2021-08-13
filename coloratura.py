@@ -6,7 +6,7 @@ from math import cos, sin, radians
 from re import sub as regexSub, split as regexSplit
 from PIL import ImageGrab
 from concurrent import futures
-from PyQt5.QtCore import QMutex, QRunnable, QThread, QWaitCondition, QObject, pyqtSignal, pyqtBoundSignal
+from PyQt5.QtCore import QMutex, QRunnable, QThread, QObject, QWaitCondition, pyqtSignal, pyqtBoundSignal
 from pathlib import Path
 from recognizing import OcrEngine, ocr_preprocessing, hsvMasking, template_match, detectShape, findContourList, rotateImage
 from unpredictable import MT19937Generator
@@ -14,7 +14,7 @@ from multiprocessing import Process, Queue, Pipe, connection
 from threading import Event
 from pynput import keyboard
 from time import sleep
-from log import MultiProcessLogging
+from log import make_q_handled_logger
 
 LV_CHECK_STATUS = 1
 LV_MOUSING = 2
@@ -33,19 +33,21 @@ RATIO_HEAD_IN_DIALOG = 0.12
 TH_CONTRAST_RATIO_WB_ND = 0.3 # lower -> night, upper -> daytime
 
 class ColoraturaSignalKey:
-    changeLocation = 0
-    evalLocation = 1
-    changeState = 2
-    changeTemplate = 3
-    changeTmRatio = 4
-    changeTmRotate = 5
-    plotPlt = 6
-    changeBbox = 7
-    addRect = 8
-    statusMessage = 9
+    
+    # normal signals : one-way
+    changeState = 0
+    changeTemplate = 1
+    changeTmRatio = 2
+    changeTmRotate = 3
+    plotPlt = 4
+    changeBbox = 5
+    addRect = 6
+    clearRects = 7
+    statusMessage = 8
 
-
-    captureScreen = 99 # special signature
+    # special signals : duplex
+    changeLocation = 97
+    captureScreen = 99 
 
 class Coloratura( QObject ):
     # minimap
@@ -62,60 +64,61 @@ class Coloratura( QObject ):
     # to overlay
     changeBbox = pyqtSignal(tuple) # draw overlay boundary
     addRect = pyqtSignal(tuple, int, int ,int ,int, int) # draw ovetlay rects, rgba, thickness
-    clearRects = pyqtSignal(QWaitCondition)
+    clearRects = pyqtSignal()
 
     # to main window
     statusMessage = pyqtSignal( str )
 
     def signalMap(self, key:int):
-        if key == ColoraturaSignalKey.changeLocation: # 0
-            return self.changeLocation 
-        elif key == ColoraturaSignalKey.evalLocation: # 1
-            return self.evalLocation
-        elif key == ColoraturaSignalKey.changeState: # 2
+        if key == ColoraturaSignalKey.changeState: # 0
             return self.changeState
-        elif key == ColoraturaSignalKey.changeTemplate: # 3
+        elif key == ColoraturaSignalKey.changeTemplate: # 1
             return self.changeTemplate
-        elif key == ColoraturaSignalKey.changeTmRatio: # 4
+        elif key == ColoraturaSignalKey.changeTmRatio: # 2
             return self.changeTmRatio
-        elif key == ColoraturaSignalKey.changeTmRotate: # 5
+        elif key == ColoraturaSignalKey.changeTmRotate: # 3
             return self.changeTmRotate
-        elif key == ColoraturaSignalKey.plotPlt: # 6
+        elif key == ColoraturaSignalKey.plotPlt: # 4
             return self.plotPlt
-        elif key == ColoraturaSignalKey.changeBbox: # 7
+        elif key == ColoraturaSignalKey.changeBbox: # 5
             return self.changeBbox
-        elif key == ColoraturaSignalKey.addRect: # 8
+        elif key == ColoraturaSignalKey.addRect: # 6
             return self.addRect
-        elif key == ColoraturaSignalKey.statusMessage: #9
+        elif key == ColoraturaSignalKey.clearRects: # 7
+            return self.clearRects
+        elif key == ColoraturaSignalKey.statusMessage: #8
             return  self.statusMessage
 
     def __init__(self, loggingQueue:Queue):
         super().__init__()
-        self.logger = MultiProcessLogging().make_q_handled_logger(loggingQueue, 'coloratura')
+        self.logger = make_q_handled_logger(loggingQueue, 'coloratura')
         self.bbox:tuple = None
+        self._deg:float = -1
+        self.waitForEvalLoc = QWaitCondition()
+        self.evalLocation.connect(self.changeDeg)
             
     def grabScreen( self ):
         try:
-            waitCondition = QWaitCondition()
-            self.logger.debug('Coloratura wait for overlay clear')
-            mutex = QMutex()
-            if mutex.tryLock( 2000 ):
-                try:        
-                    self.clearRects.emit(waitCondition)
-                    waitCondition.wait(mutex, 2000)
-                finally:
-                    mutex.unlock()
-                    img_pil = ImageGrab.grab(bbox=self.bbox)
-                    img_src = np.array(img_pil)
-                    img_gray = cv2.cvtColor(img_src, cv2.COLOR_BGR2GRAY)
-                    self.logger.debug('capture: succ')
-                    return (img_src, img_gray)
-            else:
-                self.logger.debug('capture failure: deadlock')
+            img_pil = ImageGrab.grab(bbox=self.bbox)
+            img_src = np.array(img_pil)
+            img_gray = cv2.cvtColor(img_src, cv2.COLOR_BGR2GRAY)
+            return (img_src, img_gray)
         except Exception as e:
             self.logger.debug('exception while caputre', stack_info=True)
         self.logger.info('capture: none')
         return None
+    
+    def changeDeg( self, deg:float ):
+        self._deg = deg
+        self.waitForEvalLoc.wakeAll()
+
+    def sendLocToMini( self, digits:tuple, deg:float):
+        mutex = QMutex()
+        if mutex.tryLock(2000):
+            self.changeLocation.emit(digits, deg)
+            self.waitForEvalLoc.wait(mutex,2000)
+            mutex.unlock()
+        return self._deg
 
 class DetectScreenWorker(QRunnable):
 
@@ -173,21 +176,33 @@ class DetectScreenWorker(QRunnable):
         self.args = args
 
 class ColoraturaConnector(QThread):
-    def __init__(self, coloratura:Coloratura, pipe_main:connection.Connection):
+    def __init__(self, coloratura:Coloratura, conn:connection.Connection):
         super().__init__()
         self.__coloratura = coloratura
-        self.__pipe = pipe_main
+        self.__pipe_th = conn
+    
+    def _special_emit(self, key:int, args=None ):
+        if key in [ColoraturaSignalKey.captureScreen, ColoraturaSignalKey.changeLocation]:
+            capsule = tuple()
+            if key == ColoraturaSignalKey.captureScreen:
+                capsule +=( ('captured'), )
+                data = self.__coloratura.grabScreen()
+            elif key == ColoraturaSignalKey.changeLocation:
+                capsule +=( ('deg'), )
+                if args is None:
+                    data = -1.0
+                else:
+                    data = self.__coloratura.sendLocToMini(*args)
+            if isinstance(data, tuple):
+                capsule += (data,)
+            else:
+                capsule += ( (data,), )
+            self.__pipe_th.send( capsule )
+            return True
+        return False
 
     def _emit(self, key:int, args=None):
-        if key == ColoraturaSignalKey.captureScreen:
-            data = ( ('captured'), )
-            captured = self.__coloratura.grabScreen()
-            data += ( captured, )
-            try:
-                self.__pipe.send( data )
-            except Exception:
-                pass
-        else:
+        if not self._special_emit( key, args ):
             signal = self.__coloratura.signalMap(key)
             if isinstance( signal, pyqtBoundSignal ):
                 try:
@@ -200,58 +215,51 @@ class ColoraturaConnector(QThread):
 
     def run(self):
         while True:
-            #self.__coloratura.logger.debug('connector: looping...')
             try:
-                recvData = self.__pipe.recv()
+                recvData = self.__pipe_th.recv()
             except EOFError:
+                print('EOFError occured')
+                break
+            except OSError: #pipe closed
+                print('OSERROR occured')
                 break
             else:
                 if recvData is None:
                     break
-                #self.__coloratura.logger.debug(f'recvd: {recvData}')
                 self._emit(*recvData) # (signature) + (args)
-        #self.__coloratura.logger.debug('connector: end loop')
+        
         print('connector end')
 
 class ColoraturaProcessRunner(QRunnable):
+    def close(self):
+        self.__process.end_process()
+
+    def on_key_released(self, key):
+        if key == keyboard.Key.esc:
+            self.close()
+            return False # stop key listener
+
     def run(self):
-        def on_release(key):
-            if key == keyboard.Key.esc:
-                self.__process.end_process()
-        
         self.__connector.start()
         self.__process.start()
-        #self.__coloratura.logger.debug(f'---Process level {self.__level} started---')
-        keyboard_listener = keyboard.Listener(on_release = on_release )
-        keyboard_listener.start()
-        while True:
-            try:
-                data = self.__queue.get()
-            except EOFError:
-                break
-            else:
-                if data is None:
-                    break
-        keyboard_listener.stop()
-        keyboard_listener.join()
+        self.__key_listener.start()
+
+        self.__process.join() # wait for process end normaly or abnormaly
+        self.__key_listener.stop() 
         self.__connector.wait()
-        self.__process.join()
-        #self.__coloratura.logger.debug(f'---Process level {self.__level} finished---')         
-        try:
+
+        if isinstance(self.finSignal.finished, pyqtBoundSignal):
             self.finSignal.finished.emit()
-        except AttributeError:
-            pass
         print('runner end')
+
 
     def __init__(self, loggingQueue:Queue, coloratura:Coloratura, level:int=1):
         super().__init__()
         self.finSignal = type('FinSignal', (QObject,), {'finished': pyqtSignal()})()
-        self.__coloratura = coloratura
-        self.__level = level
-        self.__queue = Queue()
-        conn_main, conn_proc = Pipe(True)
-        self.__connector = ColoraturaConnector(coloratura, conn_main)
-        self.__process = ColoraturaProcess( loggingQueue, self.__queue, conn_proc, tuple(e for e in coloratura.bbox), level)
+        conn1, conn2 = Pipe(True)
+        self.__key_listener = keyboard.Listener(on_release = self.on_key_released)
+        self.__connector = ColoraturaConnector(coloratura, conn1)
+        self.__process = ColoraturaProcess( loggingQueue, conn2, tuple(e for e in coloratura.bbox), level)
 
 class ColoraturaProcess(Process):
     WHERE_NONE = 0
@@ -268,11 +276,10 @@ class ColoraturaProcess(Process):
     DIALOG_UNKNOWN = 3
     INIT_STATE = 9
     
-    def __init__(self, loggingQueue:Queue, queue:Queue, pipe:connection.Connection, bbox:tuple, level:int = 1):
+    def __init__(self, loggingQueue:Queue, conn:connection.Connection, bbox:tuple, level:int = 1):
         super().__init__()
-        self.__queue = queue
         self.__level = level
-        self.__pipe = pipe
+        self.__pipe_proc = conn
         self.__loggingQ = loggingQueue
         
         self.ocr = OcrEngine()
@@ -285,8 +292,7 @@ class ColoraturaProcess(Process):
         self.initWorkFlowData()
         self.randomGenerator = MT19937Generator()
         self.direction: float = self.randomGenerator.generateRandomFloat(max=360.0) # 0.0 ~ 360.0
-        #self.evalLocation.connect(lambda a: self.changeDirection( a ))
-        self.logger = MultiProcessLogging().make_q_handled_logger(self.__loggingQ, 'proc')
+        self.logger = make_q_handled_logger(self.__loggingQ, 'proc')
         
         
     def loadTmImages(self):
@@ -316,65 +322,83 @@ class ColoraturaProcess(Process):
             else:
                 data += ((args,),)
         try:
-            self.__pipe.send(data)
+            self.__pipe_proc.send(data)
         except Exception:
             pass
         
     def end_process(self):
-        try:
-            print('process end')
-            self.__pipe.send(None) # stop signal connector
-            self.__queue.put(None) # stop runner
-            self.terminate()
-        except AttributeError:
-            pass
+        self._emit(ColoraturaSignalKey.statusMessage, f'워크플로우(lv{self.__level}) 정지')
+        self._emit(ColoraturaSignalKey.clearRects)
+        sleep(0.2)
+        self.__pipe_proc.send(None) # stop signal connector
+        self.__pipe_proc.close()
+        print('process end abnormaly')
+        self.terminate()
         
     def run(self):
-        self.logger.debug('start process')
+        self.logger.debug('process start')
+        self._emit(ColoraturaSignalKey.statusMessage, f'워크플로우(lv{self.__level}) 작동중.. ESC키를 눌러 정지')
+        def recvScreen():
+            while True:
+                try:
+                    recvd = self.__pipe_proc.recv()
+                except Exception:
+                    self.logger.warning('exception while recv image')
+                    break
+                else:
+                    if isinstance( recvd, tuple ) and len( recvd ) == 2:
+                        key, captured = recvd
+                        if key == 'captured' and isinstance(captured,tuple) and len(captured) == 2:
+                            return captured
+
         while( True ):
             self.initWorkFlowData()
             self.initStateFlags()
-            captureSucc:bool = False
-            self._emit(ColoraturaSignalKey.captureScreen)
-            while True:
+            
+            with futures.ThreadPoolExecutor() as executor:
+                recvFuture = executor.submit( recvScreen )
+                self._emit(ColoraturaSignalKey.captureScreen)
                 try:
-                    recvd = self.__pipe.recv()
-                    key, args = recvd
-                    if key == 'captured':
-                        captured = args
-                        captureSucc = isinstance(captured,tuple) and len(captured) == 2
-                        break
-                except ValueError:
-                    pass
-
-            if captureSucc:
-                img_src, img_gray = captured
-                dialogTuple = self.detectDialog(img_src)
-                if isinstance(dialogTuple, tuple):
-                    self.identifyDialog( dialogTuple, img_src, img_gray, self.__level )
+                    captured = recvFuture.result(timeout=5)
+                except futures.TimeoutError:
+                    self.logger.warning('capture timeout')
+                    continue
+                except futures.CancelledError:
+                    self.logger.warning('capture cancelled')
+                    continue
                 else:
-                    with futures.ThreadPoolExecutor() as executor:
-                        whenFuture = executor.submit( self.detectNightAndDay, img_gray )
-                        coordsFuture = executor.submit( self.detectCoordinates, img_src, img_gray )
-                        whereFuture =  executor.submit( self.checkFieldOrHome, img_gray, self.__level )
-                        robotFuture = executor.submit( self.checkRobotBtnAppear, img_gray, self.__level )
+                    if not isinstance(captured, tuple):
+                        continue
 
-                        whenResult:bool = whenFuture.result()
-                        coordsResult:bool = coordsFuture.result()
-                        whereResult:bool = whereFuture.result()
-                        robotResult:bool = robotFuture.result()
+                    img_src, img_gray = captured
+                    dialogTuple = self.detectDialog(img_src)
+                    if isinstance(dialogTuple, tuple):
+                        self.identifyDialog( dialogTuple, img_src, img_gray, self.__level )
+                    else:
+                        with futures.ThreadPoolExecutor() as executor:
+                            whenFuture = executor.submit( self.detectNightAndDay, img_gray )
+                            coordsFuture = executor.submit( self.detectCoordinates, img_src, img_gray )
+                            whereFuture =  executor.submit( self.checkFieldOrHome, img_gray, self.__level )
+                            robotFuture = executor.submit( self.checkRobotBtnAppear, img_gray, self.__level )
 
-                        if whenResult and whereResult and not robotResult:
-                            self.determineFieldWork(coordsResult, img_gray, self.__level)
+                            whenResult:bool = whenFuture.result()
+                            coordsResult:bool = coordsFuture.result()
+                            whereResult:bool = whereFuture.result()
+                            robotResult:bool = robotFuture.result()
+
+                            if whenResult and whereResult and not robotResult:
+                                self.determineFieldWork(coordsResult, img_gray, self.__level)
+        # while
+            self._emit(ColoraturaSignalKey.clearRects)
+            sleep(0.2)
             if self.__level >= LV_AUTO:
-                sleep(0.5)
+                sleep(0.3)
             else: 
-                break   
-        self.end_process()
+                break
 
-    def changeDirection( self, angle:float):
-        self.direction = angle
-        #self.waitForEvalLoc.wakeAll()
+        self._emit(ColoraturaSignalKey.statusMessage, f'워크플로우(lv{self.__level}) 완료')
+        self.__pipe_proc.send(None)
+        print( 'process end normaly')
     
     def initStateFlags(self):
         self.state_when:int = self.WHEN_NONE
@@ -673,15 +697,34 @@ class ColoraturaProcess(Process):
                                 digits = tuple()
                                 for i in range(0,3):
                                     digits += ( int(split[i]), )
-                                mutex = QMutex()
-                                if mutex.tryLock(2000):
+                                def recvDeg():
+                                    while True:
+                                        try:
+                                            recvd = self.__pipe_proc.recv()
+                                        except Exception:
+                                            self.logger.warning('exception while recv deg')
+                                            break
+                                        else:
+                                            if isinstance( recvd, tuple ) and len( recvd ) == 2:
+                                                key, deg_capsule = recvd
+                                                if key == 'deg' and isinstance(deg_capsule,tuple) and len(deg_capsule) == 1:
+                                                    return deg_capsule[0]
+                                with futures.ThreadPoolExecutor() as executor:
+                                    degFuture = executor.submit( recvDeg )
+                                    print(f'degree before:{self.direction}')
+                                    self.logger.debug(f'degree before:{self.direction}')
+                                    self._emit( ColoraturaSignalKey.changeLocation,( digits, self.direction ) )
                                     try:
-                                        self.logger.debug(f'degree before:{self.direction}')
-                                        self._emit( ColoraturaSignalKey.changeLocation,( digits, self.direction ) )
-                                        #self.waitForEvalLoc.wait(mutex, 2000)
-                                        self.logger.debug(f'degree after:{self.direction}')
-                                    finally:
-                                        mutex.unlock()
+                                        deg = degFuture.result(timeout=5)
+                                    except futures.TimeoutError:
+                                        self.logger.warning('calc deg timeout')
+                                    except futures.CancelledError:
+                                        self.logger.warning('calc deg cancelled')
+                                    else:
+                                        if isinstance(deg, float):
+                                            self.direction = deg
+                                    self.logger.debug(f'degree after:{self.direction}')
+                                    print(f'degree after:{self.direction}')
                                     return True
                     except Exception as e:
                         self.logger.debug(f'location error {e}', stack_info=True)

@@ -1,70 +1,48 @@
-from PyQt5.QtWidgets import QAction, QCheckBox, QDialog, QLabel, QMainWindow, QMenu, QMenuBar, QPlainTextEdit, QVBoxLayout, QWidget, QWidgetAction
-from PyQt5.QtCore import QMutex, QObject, Qt, pyqtBoundSignal, pyqtSignal
+from PyQt5.QtWidgets import QAction, QCheckBox, QDialog, QLabel, QMainWindow, \
+    QMenu, QMenuBar, QPlainTextEdit, QVBoxLayout, QWidget, QWidgetAction
+from PyQt5.QtCore import QMutex, QObject, QThreadPool, Qt, pyqtBoundSignal, pyqtSignal
 from coloratura import Coloratura
 from minimap import MiniMap
 from overlay import Overlay
 from coloratura_view import ColoraturaView
-from pyautogui import size
+from pyautogui import size, press
 from multiprocessing import Queue
-from log import MultiProcessLogging
-
-class LoggingDialog( QDialog ):
-    def __init__(self, painTextEdit:QPlainTextEdit, parent=None):
-        super().__init__(parent)
-        self.initUI(painTextEdit)
-        self._closeflag= False
-        self.closeSignal = type("CloseSignal", (QObject,), {'close': pyqtSignal(),'closed': pyqtSignal()})()
-        if isinstance( self.closeSignal.close, pyqtBoundSignal ):
-            self.closeSignal.close.connect(self.closeByMenuButton)
-    
-    def closeByMenuButton(self):
-        self._closeflag = True
-        self.close()
-    
-    def initUI( self, pte ):
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel('Log'))
-        layout.addWidget(pte)
-        self.setLayout(layout)
-
-    def closeEvent(self, evt):
-        if not self._closeflag:
-            self.closeSignal.closed.emit()
-        return super().closeEvent(evt)
+from log import MultiProcessLogging, make_q_handled_logger
 
 class RokAMU(QMainWindow):
     def __init__(self, parent = None):
         QMainWindow.__init__(self, parent)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        systemResolution = size()
-        self.resolutionOption = self.initResolutionOption( systemResolution )
-        self.signals = type("Signals", (QObject,), {'logInfo': pyqtSignal(str), 'showMessage':pyqtSignal(str)})()
+
         self.logger = self.prepareLogger()
         self.coloratura = Coloratura(self.loggingQueue)
-        self.createSubWindows()
-        self.initUI(systemResolution)
+        self.coloratura.statusMessage.connect(lambda m: self.statusBar().showMessage(m))
+        self.threadPool = QThreadPool( self )
+        self.threadPool.setMaxThreadCount(1)
+        
         self.createStatusBar()
         self.createActions()
         self.createMenus()
         self.createMenuBar()
         self.createLandToolBar()
-    
-    def createStatusBar(self):
-        self.statusBar().setStyleSheet('QStatusBar{padding-left:8px;background:rgba(20,20,20,30);color:white;font-weight:bold;}')
-        self.statusBar().showMessage('hello')
-        if isinstance(self.signals.showMessage, pyqtBoundSignal ):
-            self.signals.showMessage.connect(lambda m: self.statusBar().showMessage(m))
+
+        self.createSubWindows() # create sub ui and connect signals
+        self.initUI()
 
     def prepareLogger(self):
+        def loggingPlainText(msg):
+            mutex = QMutex()
+            if mutex.tryLock(2000):
+                self.plainTextLogger.appendPlainText(msg)
+                mutex.unlock()
+            else:
+                self.logger.debug('plain text logging failure: deadlock')
         self.loggingQueue = Queue(-1)
         self.logListener = MultiProcessLogging()
-        if isinstance( self.signals.logInfo, pyqtBoundSignal ):
-            self.signals.logInfo.connect( lambda msg: self.loggingPlainText(msg) )
-            self.logListener.startGetter(self.loggingQueue, 'listener', self.signals.logInfo )
-        else:
-            self.logListener.startGetter(self.loggingQueue, 'listener' )
+        self.logListener.logSignal.connect( lambda msg: loggingPlainText(msg) )
+        self.logListener.startGetter(self.loggingQueue, 'listener')
     
-        logger = MultiProcessLogging().make_q_handled_logger(self.loggingQueue, 'amu')
+        logger = make_q_handled_logger(self.loggingQueue, 'amu')
         logger.info('test-info')
         logger.debug('test-debug')
         logger.warning('test-warning')
@@ -72,43 +50,35 @@ class RokAMU(QMainWindow):
         logger.critical('test-critical')
         return logger
 
-    def loggingPlainText(self, msg):
-        mutex = QMutex()
-        if mutex.tryLock(2000):
-            self.plainTextLogger.appendPlainText(msg)
-            mutex.unlock()
-        else:
-            self.logger.debug('plain text logging failure: deadlock')
-        
-    def initResolutionOption(self, resolution, marginRate = 0.7):
-        detectionPartLimit = (2*resolution[0]//3, 2*resolution[1]//3)
-        if bool( detectionPartLimit[0]*marginRate > 800 ) and bool( detectionPartLimit[1]*marginRate > 600):
-            return (800,600,marginRate)
-        elif bool( detectionPartLimit[0]*marginRate > 640 ) and bool( detectionPartLimit[1]*marginRate > 480):
-            return (640,480,marginRate)
-        else:
-            return (480,360,marginRate)
-
-    def closeEvent(self, e):
-        self.logger.debug('amu closed')
-        self.logListener.stopGetter(self.loggingQueue)
-        self.coloratura.deleteLater()
-        self.overlay.signals.systemEndSign.emit()
-        return super().closeEvent(e)
-
     def createSubWindows( self ):
         self.plainTextLogger = QPlainTextEdit()
-        self.coloraturaView:ColoraturaView = ColoraturaView( self.loggingQueue, self.signals.showMessage, self.coloratura, parent = self) # sub widget
-        self.rokMiniMap:MiniMap = MiniMap( self.loggingQueue, self.coloratura, parent = self ) # sub widget
-        self.rokMiniMap.signals.landLoaded.connect( lambda id, name: self.createLandAction(id, name))
-        self.overlay:Overlay = Overlay( self.loggingQueue, self.coloratura , parent = self) # sub window
+        self.coloraturaView = ColoraturaView( self.loggingQueue, self.coloratura, parent = self) # sub widget
+        self.coloraturaView.signals.addRunner.connect( lambda r: self.threadPool.start(r) )
+        self.coloraturaView.signals.changeSatatusMessage.connect(lambda m: self.statusBar().showMessage(m))
 
-    def initUI(self, systemResolution):
+        self.rokMiniMap = MiniMap( self.loggingQueue, self.coloratura, parent = self ) # sub widget
+        self.rokMiniMap.signals.landLoaded.connect( lambda id, name: self.createLandAction(id, name))
+
+        self.overlay = Overlay( self.loggingQueue, self.coloratura , parent = self) # sub window
+        self.overlay.signals.addRunner.connect( lambda r: self.threadPool.start(r) )
+        self.overlay.signals.hideSign.connect( lambda hide: self.showOverlayAction.setChecked( not hide) )
+
+    def initUI(self):
+        def initResolutionOption(resolution, marginRate = 0.7):
+            detectionPartLimit = (2*resolution[0]//3, 2*resolution[1]//3)
+            if bool( detectionPartLimit[0]*marginRate > 800 ) and bool( detectionPartLimit[1]*marginRate > 600):
+                return (800,600,marginRate)
+            elif bool( detectionPartLimit[0]*marginRate > 640 ) and bool( detectionPartLimit[1]*marginRate > 480):
+                return (640,480,marginRate)
+            else:
+                return (480,360,marginRate)
+        systemResolution = size()
+        resolutionOption = initResolutionOption( systemResolution )
         mainWidget = QWidget(self)
         self.setCentralWidget(mainWidget)
 
-        initWidth = self.resolutionOption[0]/self.resolutionOption[2]
-        initHeight = self.resolutionOption[1]/self.resolutionOption[2]
+        initWidth = resolutionOption[0]/resolutionOption[2]
+        initHeight = resolutionOption[1]/resolutionOption[2]
 
         self.overlay.setGeometry( 50, 50, initWidth - 50 , initHeight - 50 )
         self.overlay.requestDetectScreenWork()
@@ -119,7 +89,11 @@ class RokAMU(QMainWindow):
         
         self.move( systemResolution[0] - self.size().width(), 0)
         self.show()
-    
+
+    def createStatusBar(self):
+        self.statusBar().setStyleSheet('QStatusBar{padding-left:8px;background:rgba(20,20,20,30);color:white;font-weight:bold;}')
+        self.statusBar().showMessage('hello')
+
     def createActions(self):
         def loadData():
             self.landToolBar.clear()
@@ -148,7 +122,6 @@ class RokAMU(QMainWindow):
         self.showOverlayAction.setCheckable(True)
         self.showOverlayAction.setText('&OVERLAY')
         self.showOverlayAction.triggered.connect(lambda: self.overlay.signals.toggleSign.emit())
-        self.overlay.signals.hideSign.connect( lambda hide: self.showOverlayAction.setChecked( not hide) )
         self.showOverlayAction.setChecked( True )
     
     def createMenus(self):
@@ -184,6 +157,39 @@ class RokAMU(QMainWindow):
     def createLandToolBar(self):
         self.landToolBar = self.addToolBar("lands")
         self.addToolBar(self.landToolBar)
+    
+    def closeEvent(self, e):
+        press('esc') # stop workflow
+        self.threadPool.waitForDone() # wait workflow end
+        self.overlay.signals.systemEndSign.emit()
+        self.coloratura.deleteLater()
+        self.logger.debug('amu closed')
+        self.logListener.stopGetter(self.loggingQueue)
+        return super().closeEvent(e)
+
+class LoggingDialog( QDialog ):
+    def __init__(self, painTextEdit:QPlainTextEdit, parent=None):
+        super().__init__(parent)
+        self.initUI(painTextEdit)
+        self._closeflag= False
+        self.closeSignal = type("CloseSignal", (QObject,), {'close': pyqtSignal(),'closed': pyqtSignal()})()
+        if isinstance( self.closeSignal.close, pyqtBoundSignal ):
+            self.closeSignal.close.connect(self.closeByMenuButton)
+    
+    def closeByMenuButton(self):
+        self._closeflag = True
+        self.close()
+    
+    def initUI( self, pte ):
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel('Log'))
+        layout.addWidget(pte)
+        self.setLayout(layout)
+
+    def closeEvent(self, evt):
+        if not self._closeflag and isinstance( self.closeSignal.closed, pyqtBoundSignal ):
+            self.closeSignal.closed.emit()
+        return super().closeEvent(evt)
 
     
     

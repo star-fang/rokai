@@ -1,27 +1,31 @@
 from multiprocessing import Queue
 from PyQt5.QtWidgets import QProgressBar, QSlider, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
-from PyQt5.QtCore import QThreadPool, Qt, pyqtBoundSignal
+from PyQt5.QtCore import QObject, QRunnable, Qt, pyqtBoundSignal, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
+from pyautogui import run
 from coloratura import Coloratura, ColoraturaProcessRunner
 from matplotlib import pyplot as plt # thread - unsafe
-from log import MultiProcessLogging
+from log import make_q_handled_logger
+
+class ViewSignals(QObject):
+    #view-> amu
+    changeSatatusMessage = pyqtSignal(str)
+    addRunner = pyqtSignal(QRunnable)
 
 class ColoraturaView(QWidget):
     Button_LOCATION = 2
     Button_CRACK = 3
     Button_FIND = 4
     WORKFLOW_LEVELS = ['상태감지', '마우스 동작', '루비찾기', '인증풀기', '반복']
-    def __init__(self, loggingQueue:Queue, statusSignal:pyqtBoundSignal, coloratura: Coloratura, parent=None):
+    def __init__(self, loggingQueue:Queue, coloratura: Coloratura, parent=None):
         QWidget.__init__(self, parent)
+        self.signals = ViewSignals()
         self.coloratura = coloratura
         self.initUi()
         self.connectColoraturaSignals()
         self.loggingQueue = loggingQueue
-        self.logger = MultiProcessLogging().make_q_handled_logger(loggingQueue, 'coloratura_view')
-        self.statusMessageSignal = statusSignal
-        self.threadPool = QThreadPool(self)
-        self.threadPool.setMaxThreadCount(1)
+        self.logger = make_q_handled_logger(loggingQueue, 'coloratura_view')
 
     def connectColoraturaSignals( self ):
         self.coloratura.changeTemplate.connect( lambda mat:self.setTemplateImage(mat) )
@@ -72,13 +76,11 @@ class ColoraturaView(QWidget):
         hbox_flow.addWidget(self.flow_slider)
         hbox_flow.addWidget(self.flow_btn)
         layout.addLayout( hbox_flow )
-
-        
         self.setLayout(layout)
     
     def sliderLevelChanged( self, level ):
         try:
-            self.statusMessageSignal.emit( f'Workflow level{level}: {self.WORKFLOW_LEVELS[level-1]}')
+            self.signals.changeSatatusMessage.emit( f'Workflow level{level}: {self.WORKFLOW_LEVELS[level-1]}')
         except IndexError:
             pass
 
@@ -87,7 +89,7 @@ class ColoraturaView(QWidget):
         runner = ColoraturaProcessRunner( self.loggingQueue, self.coloratura, level = level )
         if isinstance(runner.finSignal.finished, pyqtBoundSignal ):
             runner.finSignal.finished.connect(lambda: self.flow_btn.setEnabled(True))
-            self.threadPool.start(runner)
+            self.signals.addRunner.emit(runner)
         else:
             self.flow_btn.setEnabled(True)
 
