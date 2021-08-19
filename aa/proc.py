@@ -1,41 +1,39 @@
+from logging.handlers import QueueHandler
 from pynput.keyboard import Listener as KL, Key
-from multiprocessing import Process, Pipe, connection
-from PyQt5.QtCore import QRunnable, QThreadPool, QThread,QObject, pyqtBoundSignal, pyqtSignal
+from multiprocessing import Process, Pipe, connection, Queue
+from PyQt5.QtCore import QRunnable, QThreadPool, QThread
 from time import sleep
 from random import choice
+import logging
+from multiproc_logging import logger_init
 from threading import Thread
 
-class MainSignals(QObject):
-    signal = pyqtSignal(str)
 
 class MainEmitThread(QThread):
-    def __init__(self, signals:QObject, conn:connection.Connection, name:str):
+    def __init__(self, conn:connection.Connection, name:str):
         QThread.__init__(self)
-        self._conn = conn
-        self._name = name
-        self._signals = signals
+        self.__conn = conn
+        self.__name = name
 
     def run(self):
-        print( f'thread in {self._name} start')
+        logging.info(f'thread in {self.__name} start')
         while True:
             try:
-                recvd = self._conn.recv()
+                recvd = self.__conn.recv()
             except EOFError:
-                print( f'thread{self._name}: eof error')
+                logging.info(f'thread{self.__name}: eof error')
                 break
             except OSError:
-                print( f'thread{self._name}: os error')
+                logging.info(f'thread{self.__name}: os error')
                 break
             else:
                 if recvd is None:
                     break
-                print( f'thread in {self._name} recvd:{recvd}' )
-                if isinstance( self._signals.signal, pyqtBoundSignal ):
-                    self._signals.signal.emit( f'thread in {self._name} recvd:{recvd}' )
-                    self._conn.send(f'thanks for {recvd[1]}')
-        self._conn.send(None)
-        self._conn.close()
-        print( f'thread in {self._name} end')
+                logging.info(f'thread in {self.__name} recvd:{recvd}' )
+                self.__conn.send(f'thanks for {recvd[1]}')
+        self.__conn.send(None)
+        self.__conn.close()
+        logging.info(f'thread in {self.__name} end' )
 
 class ProcRunner(QRunnable):
     
@@ -44,14 +42,12 @@ class ProcRunner(QRunnable):
             self.proc.end_proc()
             return False
 
-    def __init__(self):
+    def __init__(self, queue):
         QRunnable.__init__(self)
         conn1, conn2 = Pipe()
         self.keyListener = KL(on_release=self.on_release)
-        signals = MainSignals()
-        signals.signal.connect(lambda m: print(m))
-        self.meThread = MainEmitThread(signals,conn1,'main')
-        self.proc = Proc(conn2)
+        self.meThread = MainEmitThread(conn1,'main')
+        self.proc = Proc(conn2, queue)
         
     def run(self):
         self.meThread.start()
@@ -61,48 +57,52 @@ class ProcRunner(QRunnable):
         self.proc.join()
         self.keyListener.stop()
         self.meThread.wait()
-        print('proc runner end')
+        logging.info('proc runner end')
 
 
 class Proc(Process):
     random_args = ('COLORATURA', 'YELLOW', 'A HEAD FULL OF DREAMS', 'SCIENTIST')
     def funcA( self, *args ):
-        print(f'args:{args}')
         for count in range(5):
             data = choice(args)
             capsule = (count,)
             capsule += (data,)
             self.__conn.send(capsule)
             sleep(1)
-        print('threadA fin')
+        logging.info( 'threadA fin' )
     
     def funcB( self ):
         while True:
             try:
                 recvd = self.__conn.recv()
             except Exception as e:
-                print(f'funcB error:{e}')
+                logging.info(f'funcB error:{e}')
                 break
             else:
                 if isinstance(recvd, str):
-                    print(f'proc recvd: {recvd}')
+                    logging.info( f'proc recvd: {recvd}' )
                 elif recvd is None:
                     break
-        print('threadB fin')
+        logging.info( 'threadB fin' )
 
-    def __init__(self, conn:connection.Connection):
+    def __init__(self, conn:connection.Connection, queue:Queue):
         Process.__init__(self)
         self.__conn = conn
+        self.__queue = queue
         
     
     def end_proc(self):
+        logging.info( 'proc end abnormaly' )
         self.__conn.send(None)
-        print( 'proc end abnormaly')
         self.terminate()
 
     def run(self):
-        print( 'proc start')
+        q_handler = QueueHandler(self.__queue)
+        logger = logging.getLogger()
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(q_handler)
 
+        logging.info( 'proc start' )
         thA = Thread( target=self.funcA, args=self.random_args )
         thB = Thread( target=self.funcB )
         thB.start()
@@ -110,12 +110,13 @@ class Proc(Process):
         thA.join()
         self.__conn.send(None)
         thB.join()
-        print( 'proc end normaly')
+        logging.info( 'proc end normaly' )
 
 if __name__ == '__main__':
+    q_listener, queue = logger_init()
     pool = QThreadPool()
-    pool.start( ProcRunner())
+    pool.start( ProcRunner( queue ))
     pool.waitForDone()
-    print('end program')
+    q_listener.stop()
+    logging.info('end program')
     
-    #print(f'object from subproc{conn1.recv()}')

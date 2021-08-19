@@ -47,7 +47,7 @@ class ColoraturaSignalKey:
 
     # special signals : duplex
     changeLocation = 97
-    captureScreen = 99 
+    captureScreen = 99
 
 class Coloratura( QObject ):
     # minimap
@@ -69,7 +69,7 @@ class Coloratura( QObject ):
     # to main window
     statusMessage = pyqtSignal( str )
 
-    def signalMap(self, key:int):
+    def signalMap(self, key:int) -> pyqtBoundSignal:
         if key == ColoraturaSignalKey.changeState: # 0
             return self.changeState
         elif key == ColoraturaSignalKey.changeTemplate: # 1
@@ -88,6 +88,7 @@ class Coloratura( QObject ):
             return self.clearRects
         elif key == ColoraturaSignalKey.statusMessage: #8
             return  self.statusMessage
+        return None
 
     def __init__(self, loggingQueue:Queue):
         super().__init__()
@@ -176,12 +177,12 @@ class DetectScreenWorker(QRunnable):
         self.args = args
 
 class ColoraturaConnector(QThread):
-    def __init__(self, coloratura:Coloratura, conn:connection.Connection):
+    def __init__(self, coloratura:Coloratura, conn:connection.Connection) -> None:
         super().__init__()
         self.__coloratura = coloratura
         self.__pipe_th = conn
     
-    def _special_emit(self, key:int, args=None ):
+    def _special_emit(self, key:int, args=None ) -> bool:
         if key in [ColoraturaSignalKey.captureScreen, ColoraturaSignalKey.changeLocation]:
             capsule = tuple()
             if key == ColoraturaSignalKey.captureScreen:
@@ -201,7 +202,7 @@ class ColoraturaConnector(QThread):
             return True
         return False
 
-    def _emit(self, key:int, args=None):
+    def _emit(self, key:int, args=None) -> None:
         if not self._special_emit( key, args ):
             signal = self.__coloratura.signalMap(key)
             if isinstance( signal, pyqtBoundSignal ):
@@ -292,7 +293,6 @@ class ColoraturaProcess(Process):
         self.initWorkFlowData()
         self.randomGenerator = MT19937Generator()
         self.direction: float = self.randomGenerator.generateRandomFloat(max=360.0) # 0.0 ~ 360.0
-        self.logger = make_q_handled_logger(self.__loggingQ, 'proc')
         
         
     def loadTmImages(self):
@@ -336,6 +336,7 @@ class ColoraturaProcess(Process):
         self.terminate()
         
     def run(self):
+        self.logger = make_q_handled_logger(self.__loggingQ, 'proc')
         self.logger.debug('process start')
         self._emit(ColoraturaSignalKey.statusMessage, f'워크플로우(lv{self.__level}) 작동중.. ESC키를 눌러 정지')
         def recvScreen():
@@ -343,7 +344,7 @@ class ColoraturaProcess(Process):
                 try:
                     recvd = self.__pipe_proc.recv()
                 except Exception:
-                    self.logger.warning('exception while recv image')
+                    self.logger.warning('exception while recv image: %s', exc_info=True)
                     break
                 else:
                     if isinstance( recvd, tuple ) and len( recvd ) == 2:
@@ -727,7 +728,7 @@ class ColoraturaProcess(Process):
                                     print(f'degree after:{self.direction}')
                                     return True
                     except Exception as e:
-                        self.logger.debug(f'location error {e}', stack_info=True)
+                        self.logger.debug('location error %s', exc_info=True)
         self.logger.info( f'location: none' )
         return False
 
@@ -831,7 +832,7 @@ class ColoraturaProcess(Process):
           self.logger.debug( f'analyzing failure {e}', stack_info=True)
       return False
 
-    def crackRobotCheck( self, img_src:np.ndarray, adjustMode:bool = False ):
+    def crackRobotCheck( self, img_src:np.ndarray, adjustMode:bool = False ) -> None:
         if self.crack_image_box is None or self.crack_button_box is None or len(self.crack_tm_box_list)<1:
             self.logger.warning( 'crack data unsatisfied' )
             return

@@ -1,3 +1,3 @@
-[2021-08-14 03:10:40,259 - DEBUG] minimap:167, pid:9360 -> paint count:22
-[2021-08-14 03:10:40,264 - DEBUG] minimap:103, pid:9360 -> x575, y715 is in ÈÖ¶óÈå
-[2021-08-14 03:10:40,264 - DEBUG] minimap:127, pid:9360 -> next xy : bounded
+[2021-08-19 18:59:21,402 - DEBUG] coloratura:340, pid:4824 -> process start
+[2021-08-19 18:59:21,502 - INFO] coloratura:525, pid:4824 -> dialog: unknown with 0 button(s)
+[2021-08-19 18:59:25,309 - DEBUG] minimap:167, pid:9240 -> paint count:5

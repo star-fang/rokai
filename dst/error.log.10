@@ -1,4 +1,3 @@
-[2021-08-13 18:03:59,189 - ERROR] amu:47, pid:9840 -> test-error
-[2021-08-13 18:03:59,189 - CRITICAL] amu:48, pid:9840 -> test-critical
-[2021-08-13 18:06:52,726 - WARNING] amu:46, pid:10868 -> test-warning
-[2021-08-13 18:06:52,726 - ERROR] amu:47, pid:10868 -> test-error
+[2021-08-19 18:15:57,541 - INFO] coloratura:660, pid:10288 -> where: none
+[2021-08-19 18:41:24,039 - DEBUG] coloratura:340, pid:6596 -> process start
+[2021-08-19 18:41:24,135 - INFO] coloratura:570, pid:6596 -> dialog: none

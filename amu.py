@@ -6,7 +6,6 @@ from minimap import MiniMap
 from overlay import Overlay
 from coloratura_view import ColoraturaView
 from pyautogui import size, press
-from multiprocessing import Queue
 from log import MultiProcessLogging, make_q_handled_logger
 
 class RokAMU(QMainWindow):
@@ -14,8 +13,8 @@ class RokAMU(QMainWindow):
         QMainWindow.__init__(self, parent)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
-        self.logger = self.prepareLogger()
-        self.coloratura = Coloratura(self.loggingQueue)
+        self.prepareLogger()
+        self.coloratura = Coloratura(self.logQueue)
         self.coloratura.statusMessage.connect(lambda m: self.statusBar().showMessage(m))
         self.threadPool = QThreadPool( self )
         self.threadPool.setMaxThreadCount(1)
@@ -29,37 +28,36 @@ class RokAMU(QMainWindow):
         self.createSubWindows() # create sub ui and connect signals
         self.initUI()
 
-    def prepareLogger(self):
-        def loggingPlainText(msg):
-            mutex = QMutex()
-            if mutex.tryLock(2000):
-                self.plainTextLogger.appendPlainText(msg)
-                mutex.unlock()
-            else:
-                self.logger.debug('plain text logging failure: deadlock')
-        self.loggingQueue = Queue(-1)
-        self.logListener = MultiProcessLogging()
-        self.logListener.logSignal.connect( lambda msg: loggingPlainText(msg) )
-        self.logListener.startGetter(self.loggingQueue, 'listener')
-    
-        logger = make_q_handled_logger(self.loggingQueue, 'amu')
-        logger.info('test-info')
-        logger.debug('test-debug')
-        logger.warning('test-warning')
-        logger.error('test-error')
-        logger.critical('test-critical')
-        return logger
+    def prepareLogger(self) -> None:
+        signalObj = type('Signal', (QObject,), {'logSign': pyqtSignal(str)})()
+        if hasattr(signalObj,'logSign') and isinstance(signalObj.logSign, pyqtBoundSignal):
+            def loggingPlainText(msg:str):
+                mutex = QMutex()
+                if mutex.tryLock(2000):
+                    try:
+                        self.plainTextLogger.appendPlainText(msg)
+                    except AttributeError:
+                        pass
+                    finally:
+                        mutex.unlock()
+            signalObj.logSign.connect(loggingPlainText)
+            multiProcessLogging = MultiProcessLogging()
+            self.logListener, self.logQueue = multiProcessLogging.init_logger('main', signalObj)
+        
+        self.logger = make_q_handled_logger(self.logQueue, 'amu')
+
+        self.logger.info('abcdegh')
 
     def createSubWindows( self ):
         self.plainTextLogger = QPlainTextEdit()
-        self.coloraturaView = ColoraturaView( self.loggingQueue, self.coloratura, parent = self) # sub widget
+        self.coloraturaView = ColoraturaView( self.logQueue, self.coloratura, parent = self) # sub widget
         self.coloraturaView.signals.addRunner.connect( lambda r: self.threadPool.start(r) )
         self.coloraturaView.signals.changeSatatusMessage.connect(lambda m: self.statusBar().showMessage(m))
 
-        self.rokMiniMap = MiniMap( self.loggingQueue, self.coloratura, parent = self ) # sub widget
+        self.rokMiniMap = MiniMap( self.logQueue, self.coloratura, parent = self ) # sub widget
         self.rokMiniMap.signals.landLoaded.connect( lambda id, name: self.createLandAction(id, name))
 
-        self.overlay = Overlay( self.loggingQueue, self.coloratura , parent = self) # sub window
+        self.overlay = Overlay( self.logQueue, self.coloratura , parent = self) # sub window
         self.overlay.signals.addRunner.connect( lambda r: self.threadPool.start(r) )
         self.overlay.signals.hideSign.connect( lambda hide: self.showOverlayAction.setChecked( not hide) )
 
@@ -164,7 +162,7 @@ class RokAMU(QMainWindow):
         self.overlay.signals.systemEndSign.emit()
         self.coloratura.deleteLater()
         self.logger.debug('amu closed')
-        self.logListener.stopGetter(self.loggingQueue)
+        self.logListener.stop()
         return super().closeEvent(e)
 
 class LoggingDialog( QDialog ):
