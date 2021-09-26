@@ -1,3 +1,4 @@
+from logging import getLogger
 from PyQt5.QtWidgets import QAction, QCheckBox, QDialog, QLabel, QMainWindow, \
     QMenu, QMenuBar, QPlainTextEdit, QVBoxLayout, QWidget, QWidgetAction
 from PyQt5.QtCore import QMutex, QObject, QThreadPool, Qt, pyqtBoundSignal, pyqtSignal
@@ -6,7 +7,7 @@ from minimap import MiniMap
 from overlay import Overlay
 from coloratura_view import ColoraturaView
 from pyautogui import size, press
-from log import MultiProcessLogging, make_q_handled_logger
+from log import init_logger
 
 class RokAMU(QMainWindow):
     def __init__(self, parent = None):
@@ -14,7 +15,7 @@ class RokAMU(QMainWindow):
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         self.prepareLogger()
-        self.coloratura = Coloratura(self.logQueue)
+        self.coloratura = Coloratura()
         self.coloratura.statusMessage.connect(lambda m: self.statusBar().showMessage(m))
         self.threadPool = QThreadPool( self )
         self.threadPool.setMaxThreadCount(1)
@@ -41,23 +42,20 @@ class RokAMU(QMainWindow):
                     finally:
                         mutex.unlock()
             signalObj.logSign.connect(loggingPlainText)
-            multiProcessLogging = MultiProcessLogging()
-            self.logListener, self.logQueue = multiProcessLogging.init_logger('main', signalObj)
+            self.logListener, self.logQueue = init_logger(signalObj)
         
-        self.logger = make_q_handled_logger(self.logQueue, 'amu')
-
-        self.logger.info('abcdegh')
+        self.logger = getLogger()
 
     def createSubWindows( self ):
         self.plainTextLogger = QPlainTextEdit()
-        self.coloraturaView = ColoraturaView( self.logQueue, self.coloratura, parent = self) # sub widget
+        self.coloraturaView = ColoraturaView( self.coloratura, self.logQueue, parent = self) # sub widget
         self.coloraturaView.signals.addRunner.connect( lambda r: self.threadPool.start(r) )
         self.coloraturaView.signals.changeSatatusMessage.connect(lambda m: self.statusBar().showMessage(m))
 
-        self.rokMiniMap = MiniMap( self.logQueue, self.coloratura, parent = self ) # sub widget
+        self.rokMiniMap = MiniMap( self.coloratura, parent = self ) # sub widget
         self.rokMiniMap.signals.landLoaded.connect( lambda id, name: self.createLandAction(id, name))
 
-        self.overlay = Overlay( self.logQueue, self.coloratura , parent = self) # sub window
+        self.overlay = Overlay( self.coloratura , parent = self) # sub window
         self.overlay.signals.addRunner.connect( lambda r: self.threadPool.start(r) )
         self.overlay.signals.hideSign.connect( lambda hide: self.showOverlayAction.setChecked( not hide) )
 

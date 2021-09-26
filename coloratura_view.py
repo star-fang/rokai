@@ -1,12 +1,11 @@
+from logging import getLogger
 from multiprocessing import Queue
 from PyQt5.QtWidgets import QProgressBar, QSlider, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
 from PyQt5.QtCore import QObject, QRunnable, Qt, pyqtBoundSignal, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage
 from PIL import Image
-from pyautogui import run
 from coloratura import Coloratura, ColoraturaProcessRunner
 from matplotlib import pyplot as plt # thread - unsafe
-from log import make_q_handled_logger
 
 class ViewSignals(QObject):
     #view-> amu
@@ -18,14 +17,14 @@ class ColoraturaView(QWidget):
     Button_CRACK = 3
     Button_FIND = 4
     WORKFLOW_LEVELS = ['상태감지', '마우스 동작', '루비찾기', '인증풀기', '반복']
-    def __init__(self, loggingQueue:Queue, coloratura: Coloratura, parent=None):
+    def __init__(self, coloratura: Coloratura, loggingQueue:Queue, parent=None):
         QWidget.__init__(self, parent)
         self.signals = ViewSignals()
         self.coloratura = coloratura
         self.initUi()
         self.connectColoraturaSignals()
         self.loggingQueue = loggingQueue
-        self.logger = make_q_handled_logger(loggingQueue, 'coloratura_view')
+        self.logger = getLogger()
 
     def connectColoraturaSignals( self ):
         self.coloratura.changeTemplate.connect( lambda mat:self.setTemplateImage(mat) )

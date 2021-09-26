@@ -1,9 +1,8 @@
-from multiprocessing import Queue
+from logging import getLogger
 from PyQt5.QtWidgets import QMainWindow, QWidget
 from PyQt5.QtCore import QPointF, QRectF, QRunnable, QObject, Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor, QPaintEvent, QPainter, QPainterPath, QPen, QPolygonF, QMouseEvent
 from coloratura import Coloratura, DetectScreenWorker
-from log import make_q_handled_logger
 
 TranslucentSignal = type("TranslucentSignal", (QObject,), {'addRect': pyqtSignal(tuple)})
 class TranslucentRects(QWidget):
@@ -41,11 +40,10 @@ class OverlaySignals(QObject):
     hideSign = pyqtSignal(bool)
     addRunner = pyqtSignal(QRunnable)
 
-
 class Overlay(QMainWindow):
     BORDER_THICKNESS = 12
 
-    def __init__(self, loggingQueue:Queue, coloratura: Coloratura, parent=None):
+    def __init__(self, coloratura: Coloratura, parent=None):
         QMainWindow.__init__(self, parent, Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
 
         widget = QWidget(self)
@@ -61,7 +59,7 @@ class Overlay(QMainWindow):
         self.pvPoint:list = None # pivot points form resizng << type is list for [mutable] parameter passing
         self._setGeoMode:int = 0
 
-        self.logger = make_q_handled_logger(loggingQueue, 'overlay')
+        self.logger = getLogger()
 
         self.signals = OverlaySignals()
         self.signals.toggleSign.connect(self.toggleWindow)

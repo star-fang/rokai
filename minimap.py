@@ -1,13 +1,12 @@
-import json
+from json import load as json_load
+from logging import getLogger
 from re import sub as regexreplace
 from math import cos, sin, radians, atan2, degrees
-from PyQt5.QtWidgets import  QWidget
+from PyQt5.QtWidgets import QWidget
 from PyQt5.QtCore import QLineF, QObject, QPointF, QRectF, pyqtSignal
-from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF, QTransform
-from pathlib import Path
+from PyQt5.QtGui import QColor, QMouseEvent, QPaintEvent, QPainter, QPainterPath, QPen, QPolygonF, QTransform, QWheelEvent
 from coloratura import Coloratura
-from log import make_q_handled_logger
-from multiprocessing import Queue
+from log import resource_path
 
 def intersctionPoint( boundary:QPolygonF, line: QLineF):
     bLen = boundary.count()
@@ -52,17 +51,22 @@ class MiniMapSignals(QObject):
 
     #minimap -> amu
     landLoaded = pyqtSignal(int, dict)
+    pointing = pyqtSignal(str)
 
 class MiniMap(QWidget):
-    def __init__(self, loggingQ:Queue, coloratura: Coloratura, parent=None):
+
+    def __init__(self, coloratura: Coloratura=None, parent=None):
         super(MiniMap, self).__init__(parent)
         #self.setAttribute(Qt.WA_TranslucentBackground)
-        self.coloratura = coloratura
-        self.coloratura.changeLocation.connect( self.evalLocation )
+
+        self.setMouseTracking(True)
+        if coloratura is not None:
+            self.coloratura = coloratura
+            self.coloratura.changeLocation.connect( self.evalLocation )
         self.signals = MiniMapSignals()
         self.signals.readData.connect(self.readData)
         self.signals.landChecked.connect(self.checkLand)
-        self.logger = make_q_handled_logger(loggingQ, 'mini')
+        self.logger = getLogger()
 
         self._paintcallCnt = 0
         self._drawflag = False
@@ -81,13 +85,13 @@ class MiniMap(QWidget):
         self.setMinimumWidth(300)
         self.show()
 
-    def checkLand(self, id:int, checked:bool ):
+    def checkLand(self, id:int, checked:bool ) -> None:
         if id in self.lands.keys():
             land = self.lands[id]
             if land is not None and isinstance(land, dict):
                 land['checked'] = checked
 
-    def evalLocation( self, loc:tuple, deg:float ):
+    def evalLocation( self, loc:tuple, deg:float ) -> None:
         self.clearRect()
         server, x, y = loc
         if regexreplace('\D','',self.server) in str(server):
@@ -159,8 +163,27 @@ class MiniMap(QWidget):
         self.viewRect.clear()
         self.arrow.clear()
         self.repaint()
+
+    def wheelEvent(self, evt: QWheelEvent) -> None:
+        numPx = evt.pixelDelta()
+        if not numPx.isNull():
+            print( f'num pixels: {numPx}')
+        else:
+            numAngle = evt.angleDelta()
+            if not numAngle.isNull():
+                numDeg = numAngle / 8
+                numSteps = numDeg / 15
+                print( f'num steps: {numSteps}')
+        evt.accept()
+        return super().wheelEvent(evt)
+
+    def mouseMoveEvent(self, evt: QMouseEvent) -> None:
+        if self._drawflag:
+            self.signals.pointing.emit(f'x:{evt.x()}, y:{evt.y()}')
+            evt.accept()
+        return super().mouseMoveEvent(evt)
         
-    def paintEvent(self, event):
+    def paintEvent(self, evt:QPaintEvent) -> None:
 
         if self._drawflag and self.lands is not None and len(self.lands) > 0:
             self._paintcallCnt += 1
@@ -227,20 +250,17 @@ class MiniMap(QWidget):
                 qp.drawArc(targetRect, 0, 360*16)
             qp.end()
     
-    def clearData(self):
+    def clearData(self) -> None:
         self._drawflag = False
         self.lands.clear()
         self.mapSize.clear()
 
-    def readData(self):
+    def readData(self) -> None:
         self.clearData()
-        source_path = Path(__file__).resolve()
-        source_dir = source_path.parent
-
-        name_dir = str(source_dir) + '/assets/name.json'
+        
         name_dict = dict()
-        with open(name_dir,'r', encoding='utf-8') as name_json:
-            name_python = json.load(name_json)
+        with open( resource_path( 'name.json' ),'r', encoding='utf-8') as name_json:
+            name_python = json_load(name_json)
             if isinstance( name_python, list):
                 for elmt in name_python:
                     if isinstance( elmt, dict):
@@ -251,10 +271,10 @@ class MiniMap(QWidget):
                             name_dict[id] = {'eng':name_eng, 'kor':name_kor}
                         except KeyError:
                             pass
-        file_dir = str(source_dir) + '/assets/vertex1947.json'
+        file_dir = resource_path( 'vertex1947.json' )
         self.logger.info( f'{file_dir} loaded' )
         with open(file_dir,'r', encoding='utf-8') as src_json:
-            src_python = json.load(src_json)  
+            src_python = json_load(src_json)  
             if isinstance( src_python, list ):
               for i in range( 0, len(src_python) ):
                     elmt = src_python[i]
