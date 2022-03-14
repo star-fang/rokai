@@ -356,7 +356,7 @@ class ColoraturaProcess(Process):
                     dialogTuple = self.detectDialog(img_src)
                     if isinstance(dialogTuple, tuple):
                         self.identifyDialog( dialogTuple, img_src, img_gray, self.__level )
-                        sleepTime = 2.0
+                        sleepTime = 3.5
                     else:
                         with futures.ThreadPoolExecutor() as executor:
                             whenFuture = executor.submit( self.detectNightAndDay, img_gray )
@@ -504,7 +504,7 @@ class ColoraturaProcess(Process):
                 if self.analyzeRobot2Dialog( img_gray, bbox, buttonBoxes['blue'][0], robotResult):
                     self._emit(ColoraturaSignalKey.changeState, self.DIALOG_ROBOT)
                     if wf_level >= LV_CRACK:
-                        self.crackRobotCheck(img_src, False)
+                        self.crackRobotCheck(img_src, True)
                     return
             if rubyResult:
                 self._emit(ColoraturaSignalKey.changeState, self.DIALOG_RUBY)
@@ -523,8 +523,17 @@ class ColoraturaProcess(Process):
                     pyautogui.moveTo( self.bbox[0] + (bx1+bx2)//2, self.bbox[1]+ (by1+by2)//2, 0.5 )
                     pyautogui.click()
                 else:
-                    pyautogui.moveTo( self.bbox[0] + bbox[0] - 10, self.bbox[1]+ bbox[3] - 10, 0.5 )
-                    pyautogui.click()
+                    clickY = int(( bbox[3] + bbox[1] ) / 2)
+                    if clickY < (self.bbox[3] - self.bbox[1]) * 0.8:
+                        pyautogui.moveTo( self.bbox[0] + bbox[0] - 10, self.bbox[1]+ clickY, 0.5 )
+                        pyautogui.click()
+                    if self.direction >= 0 and not rubyResult:
+                        rad = radians(self.direction)
+                        mX = (self.bbox[0] + self.bbox[2]) / 2
+                        mY = (self.bbox[1] + self.bbox[3]) / 2
+                        dragL = min( (self.bbox[3] - self.bbox[1]), (self.bbox[2] - self.bbox[0]) ) * 0.1
+                        pyautogui.moveTo( int(mX + dragL / 2 * cos(rad)), int(mY - dragL / 2 * sin(rad)) )
+                        pyautogui.dragTo( int(mX - dragL / 2 * cos(rad)), int(mY + dragL / 2 * sin(rad)), 0.5 )
 
     def detectDialog(self, img_src:np.ndarray = None):
         src_cpy = img_src.copy()
@@ -544,7 +553,7 @@ class ColoraturaProcess(Process):
                     self._emit(ColoraturaSignalKey.addRect, ( bbox, 0,0,255,255, 5 ))
                     return ('white',bbox)
 
-        navyDialogMask = cv2.bitwise_or(hsvMasking( hsv, [0,70,60], [25,255,180], adjMode=False ),\
+        navyDialogMask = cv2.bitwise_or(hsvMasking( hsv, [14,70,60], [25,255,180], adjMode=False ),\
             hsvMasking( hsv, [150,70,60], [180,255,180], adjMode=False ) )
         contours = findContourList(navyDialogMask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         if contours is not None and len( contours ) > 0:
@@ -804,7 +813,7 @@ class ColoraturaProcess(Process):
             #aa = cv2.cvtColor(img_dialog_head_thresh,cv2.COLOR_GRAY2RGB)
             for c in templateContours:
                 cx,cy,cw,ch = cv2.boundingRect(c)
-                if cw * 3 < hWidth and cw * 15 > hWidth and ch * 4 > hHeight and ch < hHeight:
+                if cw * 3 < hWidth and cw * 20 > hWidth and ch * 6 > hHeight and ch < hHeight:
                     template_rects.append((cx,cy,cw,ch))
                     #cv2.drawContours(aa, [c], 0, (255,0,0), 5)
 
@@ -979,7 +988,7 @@ class ColoraturaProcess(Process):
                             rad = radians(self.direction)
                             mX = (self.bbox[0] + self.bbox[2]) / 2
                             mY = (self.bbox[1] + self.bbox[3]) / 2
-                            dragL = min( (self.bbox[3] - self.bbox[1]) * 0.6, (self.bbox[2] - self.bbox[0]) * 0.6 )
+                            dragL = min( (self.bbox[3] - self.bbox[1]), (self.bbox[2] - self.bbox[0]) ) * 0.55
                             pyautogui.moveTo( int(mX + dragL / 2 * cos(rad)), int(mY - dragL / 2 * sin(rad)) )
                             pyautogui.dragTo( int(mX - dragL / 2 * cos(rad)), int(mY + dragL / 2 * sin(rad)), 0.5 )
                             pyautogui.moveTo( int(mX + dragL / 2 * cos(rad)), int(mY - dragL / 2 * sin(rad)) )
@@ -990,7 +999,7 @@ class ColoraturaProcess(Process):
                         rad = radians(self.direction)
                         mX = (self.bbox[0] + self.bbox[2]) / 2
                         mY = (self.bbox[1] + self.bbox[3]) / 2
-                        dragL = min( (self.bbox[3] - self.bbox[1]) * 0.1, (self.bbox[2] - self.bbox[0]) * 0.1 )
+                        dragL = min( (self.bbox[3] - self.bbox[1]), (self.bbox[2] - self.bbox[0]) ) * 0.1
                         pyautogui.moveTo( int(mX + dragL / 2 * cos(rad)), int(mY - dragL / 2 * sin(rad)) )
                         pyautogui.dragTo( int(mX - dragL / 2 * cos(rad)), int(mY + dragL / 2 * sin(rad)), 0.5 )
             #todo(2021-08-25): 화면 크기에 맞게 드래그 
